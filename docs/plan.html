@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oden – systemplan</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --surface-2: #efede6;
+    --text: #1d1c1a;
+    --muted: #5e5b54;
+    --border: #d9d5ca;
+    --accent: #2f5d8a;
+    --accent-soft: #dde8f3;
+    --ok: #2e7d4f;
+    --ok-soft: #dcefe3;
+    --warn: #a3620a;
+    --warn-soft: #f6e8d2;
+    --bad: #a23a3a;
+    --bad-soft: #f4dede;
+    --code-bg: #f0eee8;
+    --diagram-stroke: #4a4740;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413;
+      --surface: #1d1d1b;
+      --surface-2: #26261f;
+      --text: #ecebe6;
+      --muted: #a8a59c;
+      --border: #3a3933;
+      --accent: #7fb0e0;
+      --accent-soft: #1f3247;
+      --ok: #6cc28f;
+      --ok-soft: #1c3427;
+      --warn: #e3a94f;
+      --warn-soft: #3a2c15;
+      --bad: #e48686;
+      --bad-soft: #3d2121;
+      --code-bg: #242420;
+      --diagram-stroke: #b8b5ab;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413;
+    --surface: #1d1d1b;
+    --surface-2: #26261f;
+    --text: #ecebe6;
+    --muted: #a8a59c;
+    --border: #3a3933;
+    --accent: #7fb0e0;
+    --accent-soft: #1f3247;
+    --ok: #6cc28f;
+    --ok-soft: #1c3427;
+    --warn: #e3a94f;
+    --warn-soft: #3a2c15;
+    --bad: #e48686;
+    --bad-soft: #3d2121;
+    --code-bg: #242420;
+    --diagram-stroke: #b8b5ab;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.hero { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 8px; }
+  .eyebrow { color: var(--accent); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 8px 0 12px; }
+  h2 { font-size: 24px; margin: 56px 0 12px; padding-top: 8px; }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  .lede { font-size: 18px; color: var(--muted); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+
+  nav.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+  nav.toc ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { break-inside: avoid; }
+  @media (max-width: 600px) { nav.toc ol { columns: 1; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .grid .card { margin: 0; }
+  .card h3 { margin-top: 0; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.bad { background: var(--bad-soft); color: var(--bad); }
+  .tag.info { background: var(--accent-soft); color: var(--accent); }
+
+  .pros, .cons { margin: 6px 0; padding-left: 20px; }
+  .pros li::marker { content: "+  "; color: var(--ok); font-weight: 700; }
+  .cons li::marker { content: "−  "; color: var(--bad); font-weight: 700; }
+
+  figure { margin: 20px 0; }
+  figure .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  figure svg { display: block; width: 100%; height: auto; min-width: 640px; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  svg .box { fill: var(--surface-2); stroke: var(--diagram-stroke); stroke-width: 1.2; }
+  svg .box.accent { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .box.ok { fill: var(--ok-soft); stroke: var(--ok); }
+  svg .box.warn { fill: var(--warn-soft); stroke: var(--warn); }
+  svg .zone { fill: none; stroke: var(--border); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  svg .t { fill: var(--text); font: 600 13px ui-sans-serif, system-ui, sans-serif; }
+  svg .s { fill: var(--muted); font: 11.5px ui-sans-serif, system-ui, sans-serif; }
+  svg .z { fill: var(--muted); font: 600 11px ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; }
+  svg .line { stroke: var(--diagram-stroke); stroke-width: 1.4; fill: none; }
+  svg .line.dash { stroke-dasharray: 4 3; }
+  svg .arrowhead { fill: var(--diagram-stroke); }
+
+  .phase { position: relative; padding-left: 28px; border-left: 2px solid var(--border); margin-left: 8px; padding-bottom: 8px; }
+  .phase::before { content: ""; position: absolute; left: -9px; top: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
+  .phase h3 { margin-top: 0; }
+  .phase .meta { color: var(--muted); font-size: 14px; margin-top: -4px; }
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 26px; position: relative; }
+  .check li::before { content: "☐"; position: absolute; left: 2px; color: var(--muted); }
+
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <div class="eyebrow">Oden · Plan för issue #1</div>
+  <h1>Ett kontrolltorn för AI-agenter och prompter</h1>
+  <p class="lede">Ett system som tar emot händelser från alla agent-sessioner (Claude Code, Claude Cowork och andra harnesses), visar live-status för varje session och bygger upp statistik över hur du jobbar med dina agenter.</p>
+  <p class="lede">Namnet passar: Oden hade korparna Hugin och Munin som flög ut i världen och rapporterade tillbaka. Här är korparna små insamlare som sitter i varje session.</p>
+</header>
+
+<nav class="toc" aria-label="Innehåll">
+  <strong>Innehåll</strong>
+  <ol>
+    <li><a href="#mal">Mål och krav</a></li>
+    <li><a href="#rekommendation">Rekommendation i korthet</a></li>
+    <li><a href="#kallor">Datakällor: hooks och alternativ</a></li>
+    <li><a href="#hooks">Hooks att koppla in sig på</a></li>
+    <li><a href="#arkitektur">Systemarkitektur</a></li>
+    <li><a href="#flode">Processflöde</a></li>
+    <li><a href="#status">Statusmaskin för sessioner</a></li>
+    <li><a href="#datamodell">Händelseformat och datamodell</a></li>
+    <li><a href="#statistik">Statistik och mätvärden</a></li>
+    <li><a href="#harnesses">Stöd för flera harnesses</a></li>
+    <li><a href="#integritet">Integritet och säkerhet</a></li>
+    <li><a href="#faser">Faser: PoC → MVP → vidare</a></li>
+    <li><a href="#extra">Fler idéer</a></li>
+    <li><a href="#fragor">Öppna frågor</a></li>
+  </ol>
+</nav>
+
+<section id="mal">
+  <h2>1. Mål och krav</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Live-översikt</h3>
+      <p>Vilka sessioner pågår just nu, på vilken maskin och i vilket repo? Jobbar agenten, väntar den på mig, behöver den ett tillstånd, eller har den fastnat? Hur full är kontexten?</p>
+    </div>
+    <div class="card">
+      <h3>Statistik över tid</h3>
+      <p>Promptlängd, modellval, hur länge agenten jobbar per tur, hur ofta och hur snabbt jag svarar, verktygsanvändning, tokens och kostnad, komprimeringar.</p>
+    </div>
+    <div class="card">
+      <h3>Promptarkiv</h3>
+      <p>Alla prompter jag skickat, sökbara, kopplade till sessionen och utfallet. Senare även ett bibliotek med prompter jag återanvänder.</p>
+    </div>
+    <div class="card">
+      <h3>Fungerar med flera harnesses</h3>
+      <p>Claude Code och Claude Cowork först. Andra agenter (Codex CLI, Gemini CLI, Cursor, egna Agent SDK-agenter) via adaptrar till ett gemensamt händelseformat.</p>
+    </div>
+  </div>
+</section>
+
+<section id="rekommendation">
+  <h2>2. Rekommendation i korthet</h2>
+  <div class="callout">
+    <p><strong>Använd hooks för status och flera kompletterande källor för siffrorna.</strong> Hooks är det enda sättet att få exakta tillståndsövergångar i realtid: när en tur börjar och slutar, när agenten väntar på tillstånd, när den går idle. Men hooks får inte med tokens, kostnad eller kontextfyllnad. Det hämtar vi från sessionens transkript (JSONL), från statusraden och, i ett senare steg, från Claude Codes inbyggda OpenTelemetry-export.</p>
+  </div>
+  <ol>
+    <li><strong>Insamlare</strong> (”korpar”): ett litet hook-skript eller en HTTP-hook som skickar varje händelse vidare, utan att blockera sessionen.</li>
+    <li><strong>Ingest-tjänst</strong>: en lokal daemon som tar emot händelser, normaliserar dem och sparar dem i en append-only-logg (SQLite).</li>
+    <li><strong>Processor</strong>: kör en statusmaskin per session och räknar fram turer, tider och aggregat.</li>
+    <li><strong>Dashboard</strong>: live-vy via WebSocket eller SSE plus statistikvyer. Dessutom notiser när en session väntar på dig.</li>
+  </ol>
+  <p>Allt körs lokalt först (local-first, inga prompter lämnar datorn). Moln-sessioner, som Claude Code on the web, når inte <code>localhost</code>. För dem behövs i en senare fas en hostad ingest-endpoint eller en relay.</p>
+</section>
+
+<section id="kallor">
+  <h2>3. Datakällor: hooks och alternativ</h2>
+  <p>Hooks är en bra grund, men inte det enda alternativet. Här jämförs de vägar som finns, med fördelar och nackdelar.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>A. Command-hooks <span class="tag ok">Kärna</span></h3>
+      <p>Ett skript som körs vid varje hook-event och får event-JSON på stdin.</p>
+      <ul class="pros">
+        <li>Exakta statusövergångar i realtid</li>
+        <li>Fungerar även när daemonen är nere (skriv till lokal kö-fil)</li>
+        <li>Kan paketeras som plugin och installeras med ett kommando</li>
+      </ul>
+      <ul class="cons">
+        <li>En process startas per event, vilket ger latens om det görs synkront</li>
+        <li>Ingen token-, kostnads- eller kontextdata</li>
+        <li>Varje harness har sitt eget hook-format</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>B. HTTP-hooks <span class="tag ok">Kärna, MVP</span></h3>
+      <p>Hooken POSTar event-JSON direkt till en URL i stället för att starta ett skript.</p>
+      <ul class="pros">
+        <li>Ingen processstart, så lägre overhead</li>
+        <li>Enkel konfiguration, ingen kod hos klienten</li>
+        <li>Fungerar mot en hostad endpoint för moln-sessioner</li>
+      </ul>
+      <ul class="cons">
+        <li>Händelser försvinner om mottagaren är nere (ingen lokal buffring)</li>
+        <li>Fortfarande ingen token- eller kontextdata</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>C. Transkript (JSONL) <span class="tag ok">Komplement</span></h3>
+      <p>Varje hook får <code>transcript_path</code>. Filen innehåller alla meddelanden med modell och <code>usage</code> (tokens).</p>
+      <ul class="pros">
+        <li>Ger kontextfyllnad, tokens och modell per tur</li>
+        <li>Historik kan importeras i efterhand, även för gamla sessioner</li>
+      </ul>
+      <ul class="cons">
+        <li>Internt format som kan ändras mellan versioner</li>
+        <li>Finns bara på maskinen där sessionen körs</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>D. Statusrad <span class="tag info">Komplement</span></h3>
+      <p>Claude Codes statusline-skript får sessionsdata, inklusive kontextfönstrets användning, och körs ofta.</p>
+      <ul class="pros">
+        <li>Färdigberäknad kontextfyllnad, nästan i realtid</li>
+        <li>Du ser samtidigt Oden-status i terminalen</li>
+      </ul>
+      <ul class="cons">
+        <li>Bara i den interaktiva terminalen, inte i headless-läge eller moln</li>
+        <li>Användaren har bara en statusrad, så den kan krocka med en befintlig</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>E. OpenTelemetry <span class="tag info">Fas 3</span></h3>
+      <p>Claude Code kan exportera metrics och events via OTLP: tokens, kostnad, API-anrop, verktygsbeslut, promptevents (prompttext bara om man slår på det).</p>
+      <ul class="pros">
+        <li>Officiellt och stabilt kontrakt, rik data om tokens och kostnad</li>
+        <li>Standardformat som även andra harnesses (t.ex. Codex, Gemini CLI) har stöd för</li>
+        <li>Kan skickas till Grafana, Honeycomb m.fl. parallellt</li>
+      </ul>
+      <ul class="cons">
+        <li>Batchad export, så inte omedelbar</li>
+        <li>Saknar tillstånd som ”väntar på dig”</li>
+        <li>Mer att sätta upp: en OTLP-mottagare behövs</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>F. API-proxy <span class="tag bad">Avråds</span></h3>
+      <p>Peka <code>ANTHROPIC_BASE_URL</code> mot en proxy (t.ex. LiteLLM) som loggar varje anrop.</p>
+      <ul class="pros">
+        <li>Helt harness-oberoende, ser exakt varje modellanrop</li>
+      </ul>
+      <ul class="cons">
+        <li>Ligger i den kritiska vägen: om proxyn går ner slutar agenterna fungera</li>
+        <li>Krånglig autentisering, fungerar dåligt med prenumerationsinloggning</li>
+        <li>Ser inte UI-tillstånd (väntar, tillstånd, idle)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Slutsats</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Behov</th><th>Bästa källa</th><th>Reserv</th></tr></thead>
+      <tbody>
+        <tr><td>Status (jobbar/väntar/idle)</td><td>Hooks</td><td>Notification-events</td></tr>
+        <tr><td>Prompter och promptlängd</td><td>Hook <code>UserPromptSubmit</code></td><td>Transkript</td></tr>
+        <tr><td>Kontextfyllnad</td><td>Statusrad</td><td>Transkript (senaste <code>usage</code>)</td></tr>
+        <tr><td>Modell, tokens</td><td>Transkript</td><td>OpenTelemetry</td></tr>
+        <tr><td>Kostnad</td><td>OpenTelemetry</td><td>Beräknas från tokens och prislista</td></tr>
+        <tr><td>Historik från innan Oden fanns</td><td>Import av transkript</td><td>–</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="hooks">
+  <h2>4. Hooks att koppla in sig på (Claude Code)</h2>
+  <p>Alla hook-events får gemensamma fält: <code>session_id</code>, <code>transcript_path</code>, <code>cwd</code>, <code>permission_mode</code> och <code>hook_event_name</code>. Därtill kommer event-specifika fält. Listan bygger på dokumentationen i skrivande stund. Nya events tillkommer, så insamlaren ska skicka vidare <em>alla</em> events oförändrade och låta servern avgöra vad som är intressant.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Event</th><th>När</th><th>Intressant data</th><th>Används till</th></tr></thead>
+      <tbody>
+        <tr><td><code>SessionStart</code></td><td>Ny, återupptagen eller rensad session, eller efter komprimering</td><td><code>source</code> (startup/resume/clear/compact), cwd</td><td>Skapa sessionen, koppla till repo/branch, räkna komprimeringar</td></tr>
+        <tr><td><code>UserPromptSubmit</code></td><td>Du skickar en prompt</td><td><code>prompt</code></td><td>Tur börjar → <em>working</em>. Promptlängd, promptarkiv, svarstid från förra <code>Stop</code></td></tr>
+        <tr><td><code>PreToolUse</code></td><td>Innan ett verktyg körs</td><td><code>tool_name</code>, <code>tool_input</code></td><td>”Kör nu: Bash <code>npm test</code>”, verktygsstatistik</td></tr>
+        <tr><td><code>PermissionRequest</code></td><td>Agenten ber om tillstånd</td><td>verktyg och indata</td><td>→ <em>waiting_permission</em>, notis, räkna manuella ingrepp</td></tr>
+        <tr><td><code>PostToolUse</code></td><td>Verktyget lyckades</td><td><code>tool_response</code></td><td>Verktygets körtid (från Pre till Post), tillbaka till <em>working</em></td></tr>
+        <tr><td><code>PostToolUseFailure</code></td><td>Verktyget misslyckades</td><td>felinfo</td><td>Felfrekvens per verktyg</td></tr>
+        <tr><td><code>Notification</code></td><td>Claude Code visar en notis</td><td><code>message</code>, notistyp (t.ex. permission_prompt, idle_prompt)</td><td>Reservsignal för väntelägen</td></tr>
+        <tr><td><code>SubagentStart</code> / <code>SubagentStop</code></td><td>En subagent startar eller blir klar</td><td>agent-id, agenttyp</td><td>Träd av agenter per session, parallellitet</td></tr>
+        <tr><td><code>Stop</code></td><td>Agenten är klar med sin tur</td><td><code>stop_hook_active</code></td><td>Tur slutar → <em>waiting_input</em>. Turens längd. Läs transkriptet för tokens och modell</td></tr>
+        <tr><td><code>PreCompact</code></td><td>Innan kontexten komprimeras</td><td><code>trigger</code> (manual/auto)</td><td>”Kontexten var full”, fyllnadsgrad vid komprimering</td></tr>
+        <tr><td><code>SessionEnd</code></td><td>Sessionen avslutas</td><td><code>reason</code></td><td>→ <em>ended</em>, total sessionstid</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Exempel: hook-konfiguration för PoC</h3>
+  <p>Samma skript registreras för alla events. Det ska alltid avslutas med kod 0 och aldrig blockera agenten.</p>
+<pre><code>// ~/.claude/settings.json (utdrag)
+{
+  "hooks": {
+    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }],
+    "PreToolUse":       [{ "matcher": "*", "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }],
+    "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }],
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "~/.oden/bin/raven" }] }]
+    // … samt PermissionRequest, Notification, PreCompact, Subagent*
+  }
+}</code></pre>
+<pre><code>#!/usr/bin/env bash
+# ~/.oden/bin/raven – lägger till metadata och skickar vidare utan att blockera
+payload=$(cat)
+event=$(jq -c --arg host "$(hostname)" --arg h "claude-code" \
+  '{received_at: (now|todate), harness: $h, host: $host, raw: .}' &lt;&lt;&lt;"$payload")
+echo "$event" &gt;&gt; ~/.oden/spool.jsonl                     # lokal buffert, tål att servern är nere
+curl -s -m 1 -X POST localhost:4747/ingest -d "$event" &gt;/dev/null 2&gt;&amp;1 &amp;
+exit 0</code></pre>
+  <div class="callout warn">
+    <p><strong>Prestanda:</strong> hooks körs i sessionens kritiska väg. Insamlaren måste vara snabb (under ~50 ms), ha kort timeout och skicka i bakgrunden. Tunga saker som transkript-parsning görs på serversidan, aldrig i hooken.</p>
+  </div>
+</section>
+
+<section id="arkitektur">
+  <h2>5. Systemarkitektur</h2>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 900 560" role="img" aria-labelledby="arch-title arch-desc">
+        <title id="arch-title">Oden systemarkitektur</title>
+        <desc id="arch-desc">Agent-sessioner skickar händelser via insamlare till en ingest-tjänst. Händelserna lagras i SQLite, bearbetas av en processor och visas i dashboard och notiser.</desc>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+
+        <!-- Zone: sessions -->
+        <rect class="zone" x="10" y="10" width="250" height="540" rx="12"/>
+        <text class="z" x="26" y="34">AGENT-SESSIONER</text>
+
+        <rect class="box" x="30" y="50" width="210" height="64" rx="8"/>
+        <text class="t" x="44" y="76">Claude Code (CLI/IDE)</text>
+        <text class="s" x="44" y="96">hooks · transkript · statusrad</text>
+
+        <rect class="box" x="30" y="128" width="210" height="64" rx="8"/>
+        <text class="t" x="44" y="154">Claude Code on the web</text>
+        <text class="s" x="44" y="174">hooks via repo-settings → moln</text>
+
+        <rect class="box" x="30" y="206" width="210" height="64" rx="8"/>
+        <text class="t" x="44" y="232">Claude Cowork</text>
+        <text class="s" x="44" y="252">plugin-hooks / Agent SDK</text>
+
+        <rect class="box" x="30" y="284" width="210" height="64" rx="8"/>
+        <text class="t" x="44" y="310">Codex · Gemini · Cursor</text>
+        <text class="s" x="44" y="330">egna hooks / OTel → adapter</text>
+
+        <rect class="box" x="30" y="362" width="210" height="64" rx="8"/>
+        <text class="t" x="44" y="388">Egna agenter</text>
+        <text class="s" x="44" y="408">Agent SDK-hooks i kod</text>
+
+        <rect class="box accent" x="30" y="450" width="210" height="84" rx="8"/>
+        <text class="t" x="44" y="476">Korpen (insamlare)</text>
+        <text class="s" x="44" y="496">kommando- eller HTTP-hook</text>
+        <text class="s" x="44" y="514">lokal spool-fil vid avbrott</text>
+
+        <!-- Zone: Oden server -->
+        <rect class="zone" x="300" y="10" width="360" height="540" rx="12"/>
+        <text class="z" x="316" y="34">ODEN-DAEMON (LOKAL)</text>
+
+        <rect class="box accent" x="320" y="50" width="320" height="76" rx="8"/>
+        <text class="t" x="336" y="76">Ingest-API</text>
+        <text class="s" x="336" y="96">POST /ingest · /v1/otlp · token-auth</text>
+        <text class="s" x="336" y="114">normalisera → gemensamt händelseformat</text>
+
+        <rect class="box" x="320" y="150" width="150" height="76" rx="8"/>
+        <text class="t" x="336" y="176">Händelselogg</text>
+        <text class="s" x="336" y="196">SQLite, append-only</text>
+        <text class="s" x="336" y="214">tabell events</text>
+
+        <rect class="box" x="490" y="150" width="150" height="76" rx="8"/>
+        <text class="t" x="506" y="176">Berikare</text>
+        <text class="s" x="506" y="196">läser transkript:</text>
+        <text class="s" x="506" y="214">tokens, modell, kontext</text>
+
+        <rect class="box ok" x="320" y="250" width="320" height="96" rx="8"/>
+        <text class="t" x="336" y="276">Processor</text>
+        <text class="s" x="336" y="296">statusmaskin per session</text>
+        <text class="s" x="336" y="314">turer, väntetider, verktygstider</text>
+        <text class="s" x="336" y="332">aggregat (timme/dag) · ”fastnat”-detektion</text>
+
+        <rect class="box" x="320" y="370" width="320" height="64" rx="8"/>
+        <text class="t" x="336" y="396">Läsmodell</text>
+        <text class="s" x="336" y="416">sessions · turns · prompts · tool_calls · daily_stats</text>
+
+        <rect class="box accent" x="320" y="458" width="320" height="76" rx="8"/>
+        <text class="t" x="336" y="484">Läs-API</text>
+        <text class="s" x="336" y="504">REST för statistik</text>
+        <text class="s" x="336" y="522">SSE/WebSocket för live-status</text>
+
+        <!-- Zone: consumers -->
+        <rect class="zone" x="700" y="10" width="190" height="540" rx="12"/>
+        <text class="z" x="716" y="34">KONSUMENTER</text>
+
+        <rect class="box" x="716" y="50" width="158" height="76" rx="8"/>
+        <text class="t" x="730" y="76">Dashboard</text>
+        <text class="s" x="730" y="96">live-vy, inkorg,</text>
+        <text class="s" x="730" y="114">statistik, promptarkiv</text>
+
+        <rect class="box" x="716" y="150" width="158" height="64" rx="8"/>
+        <text class="t" x="730" y="176">Notiser</text>
+        <text class="s" x="730" y="196">desktop / mobil push</text>
+
+        <rect class="box" x="716" y="238" width="158" height="64" rx="8"/>
+        <text class="t" x="730" y="264">CLI</text>
+        <text class="s" x="730" y="284">oden ls · oden stats</text>
+
+        <rect class="box" x="716" y="326" width="158" height="64" rx="8"/>
+        <text class="t" x="730" y="352">Statusrad</text>
+        <text class="s" x="730" y="372">”3 väntar på dig”</text>
+
+        <rect class="box warn" x="716" y="414" width="158" height="64" rx="8"/>
+        <text class="t" x="730" y="440">Export</text>
+        <text class="s" x="730" y="460">CSV · JSON · Grafana</text>
+
+        <!-- arrows: sessions -> raven -->
+        <path class="line dash" d="M240,82 H262 V492 H240"/>
+        <path class="line dash" d="M240,160 H262"/>
+        <path class="line dash" d="M240,238 H262"/>
+        <path class="line dash" d="M240,316 H262"/>
+        <path class="line dash" d="M240,394 H262"/>
+        <!-- raven -> ingest -->
+        <path class="line" d="M240,470 H282 V88 H318" marker-end="url(#arr)"/>
+        <!-- ingest -> log, log -> processor, enricher -->
+        <path class="line" d="M395,126 V148" marker-end="url(#arr)"/>
+        <path class="line" d="M470,188 H488" marker-end="url(#arr)"/>
+        <path class="line" d="M395,226 V248" marker-end="url(#arr)"/>
+        <path class="line" d="M565,226 V248" marker-end="url(#arr)"/>
+        <path class="line" d="M480,346 V368" marker-end="url(#arr)"/>
+        <path class="line" d="M480,434 V456" marker-end="url(#arr)"/>
+        <!-- read api -> consumers -->
+        <path class="line" d="M640,496 H690 V88 H714" marker-end="url(#arr)"/>
+        <path class="line" d="M690,182 H714" marker-end="url(#arr)"/>
+        <path class="line" d="M690,270 H714" marker-end="url(#arr)"/>
+        <path class="line" d="M690,358 H714" marker-end="url(#arr)"/>
+        <path class="line" d="M690,446 H714" marker-end="url(#arr)"/>
+      </svg>
+    </div>
+    <figcaption>Figur 1. Händelser flyter från vänster till höger. Den streckade linjen markerar att varje harness har sin egen insamlare, men alla skickar samma format till ingest.</figcaption>
+  </figure>
+
+  <h3>Delarna</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Del</th><th>Ansvar</th><th>Teknikförslag</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Korpen</strong> (insamlare)</td><td>Fånga event-JSON, lägga till <code>harness</code>, <code>host</code> och tidsstämpel, skicka utan att blockera, buffra lokalt vid avbrott.</td><td>Bash + <code>curl</code> i PoC. Senare en liten binär (Go/Bun) eller ren HTTP-hook. Paketeras som Claude Code-plugin.</td></tr>
+        <tr><td><strong>Ingest-API</strong></td><td>Ta emot och validera, autentisera med token, normalisera till gemensamt format, idempotens via händelse-id.</td><td>TypeScript (Bun eller Node + Hono). Samma typer kan delas med dashboarden.</td></tr>
+        <tr><td><strong>Händelselogg</strong></td><td>Sanningskälla. Allt sparas oförändrat så att läsmodellen kan byggas om när logiken ändras.</td><td>SQLite (WAL-läge). Postgres om det blir flera maskiner eller hostat.</td></tr>
+        <tr><td><strong>Berikare</strong></td><td>Vid <code>Stop</code>/<code>PreCompact</code>: läs nya rader i transkriptet, plocka modell, tokens och beräkna kontextfyllnad.</td><td>Inkrementell läsning med sparad offset per fil. Körs på samma maskin som sessionen.</td></tr>
+        <tr><td><strong>Processor</strong></td><td>Statusmaskin, turer, väntetider, aggregat, ”fastnat”-detektion (working &gt; N min utan events).</td><td>Körs i samma process som ingest. Ren funktion: <code>(state, event) → state</code>, lätt att testa.</td></tr>
+        <tr><td><strong>Läs-API + dashboard</strong></td><td>Live-lista och inkorg, sessionsdetaljer med tidslinje, statistikvyer, promptarkiv med sök.</td><td>SSE för live-data. Frontend i React eller Svelte, diagram med t.ex. Observable Plot.</td></tr>
+        <tr><td><strong>Notiser</strong></td><td>”Session X väntar på dig sedan 2 min”, med regler för när man ska störas.</td><td>OS-notiser, ntfy.sh eller Pushover för mobilen.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="flode">
+  <h2>6. Processflöde</h2>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 900 250" role="img" aria-labelledby="flow-title">
+        <title id="flow-title">Processflöde för en händelse</title>
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+        <rect class="box" x="10" y="30" width="150" height="80" rx="8"/>
+        <text class="t" x="24" y="58">1. Hook triggas</text>
+        <text class="s" x="24" y="78">t.ex. Stop</text>
+        <text class="s" x="24" y="96">JSON på stdin</text>
+
+        <rect class="box accent" x="190" y="30" width="150" height="80" rx="8"/>
+        <text class="t" x="204" y="58">2. Korpen</text>
+        <text class="s" x="204" y="78">+ harness, host, ts</text>
+        <text class="s" x="204" y="96">spool + POST (bg)</text>
+
+        <rect class="box accent" x="370" y="30" width="150" height="80" rx="8"/>
+        <text class="t" x="384" y="58">3. Ingest</text>
+        <text class="s" x="384" y="78">validera, dedup</text>
+        <text class="s" x="384" y="96">normalisera</text>
+
+        <rect class="box" x="550" y="30" width="150" height="80" rx="8"/>
+        <text class="t" x="564" y="58">4. Lagra</text>
+        <text class="s" x="564" y="78">INSERT i events</text>
+        <text class="s" x="564" y="96">(oförändrad rådata)</text>
+
+        <rect class="box ok" x="730" y="30" width="160" height="80" rx="8"/>
+        <text class="t" x="744" y="58">5. Processor</text>
+        <text class="s" x="744" y="78">ny status, avsluta tur</text>
+        <text class="s" x="744" y="96">uppdatera läsmodell</text>
+
+        <rect class="box" x="550" y="150" width="150" height="80" rx="8"/>
+        <text class="t" x="564" y="178">6. Berika (async)</text>
+        <text class="s" x="564" y="198">läs transkript-delta</text>
+        <text class="s" x="564" y="216">tokens, kontext %</text>
+
+        <rect class="box" x="370" y="150" width="150" height="80" rx="8"/>
+        <text class="t" x="384" y="178">7. Publicera</text>
+        <text class="s" x="384" y="198">SSE till dashboard</text>
+        <text class="s" x="384" y="216">statusrad, CLI</text>
+
+        <rect class="box warn" x="190" y="150" width="150" height="80" rx="8"/>
+        <text class="t" x="204" y="178">8. Regler</text>
+        <text class="s" x="204" y="198">väntar &gt; 60 s?</text>
+        <text class="s" x="204" y="216">→ notis till mobilen</text>
+
+        <path class="line" d="M160,70 H188" marker-end="url(#arr2)"/>
+        <path class="line" d="M340,70 H368" marker-end="url(#arr2)"/>
+        <path class="line" d="M520,70 H548" marker-end="url(#arr2)"/>
+        <path class="line" d="M700,70 H728" marker-end="url(#arr2)"/>
+        <path class="line" d="M810,110 V190 H702" marker-end="url(#arr2)"/>
+        <path class="line" d="M550,190 H522" marker-end="url(#arr2)"/>
+        <path class="line" d="M370,190 H342" marker-end="url(#arr2)"/>
+      </svg>
+    </div>
+    <figcaption>Figur 2. Steg 1–2 sker i sessionen och måste gå fort. Allt från steg 3 sker i daemonen, asynkront mot agenten.</figcaption>
+  </figure>
+  <p><strong>Varför event sourcing?</strong> Rådata sparas oförändrad och allt annat härleds ur den. När vi kommer på ett nytt mätvärde, eller hittar ett fel i statusmaskinen, kör vi om hela loggen och får korrekt historik. Det är billigt i SQLite och sparar mycket huvudvärk.</p>
+</section>
+
+<section id="status">
+  <h2>7. Statusmaskin för sessioner</h2>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 900 300" role="img" aria-labelledby="sm-title">
+        <title id="sm-title">Statusmaskin för en session</title>
+        <defs>
+          <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+        <rect class="box" x="20" y="120" width="120" height="56" rx="28"/>
+        <text class="t" x="50" y="153">started</text>
+
+        <rect class="box ok" x="260" y="120" width="140" height="56" rx="28"/>
+        <text class="t" x="296" y="153">working</text>
+
+        <rect class="box warn" x="520" y="30" width="200" height="56" rx="28"/>
+        <text class="t" x="548" y="63">waiting_permission</text>
+
+        <rect class="box accent" x="520" y="200" width="200" height="56" rx="28"/>
+        <text class="t" x="568" y="233">waiting_input</text>
+
+        <rect class="box" x="780" y="120" width="100" height="56" rx="28"/>
+        <text class="t" x="805" y="153">ended</text>
+
+        <path class="line" d="M140,148 H258" marker-end="url(#arr3)"/>
+        <text class="s" x="150" y="138">UserPromptSubmit</text>
+
+        <path class="line" d="M380,124 C430,70 470,58 518,58" marker-end="url(#arr3)"/>
+        <text class="s" x="390" y="56">PermissionRequest</text>
+
+        <path class="line" d="M520,74 C470,90 430,110 400,132" marker-end="url(#arr3)"/>
+        <text class="s" x="430" y="112">svar / PostToolUse</text>
+
+        <path class="line" d="M380,172 C430,226 470,228 518,228" marker-end="url(#arr3)"/>
+        <text class="s" x="400" y="250">Stop</text>
+
+        <path class="line" d="M520,214 C470,200 430,186 402,168" marker-end="url(#arr3)"/>
+        <text class="s" x="408" y="196">UserPromptSubmit</text>
+
+        <path class="line dash" d="M720,228 C760,220 790,200 815,178" marker-end="url(#arr3)"/>
+        <text class="s" x="740" y="250">SessionEnd</text>
+
+        <path class="line dash" d="M330,176 V280 H830 V178" marker-end="url(#arr3)"/>
+        <text class="s" x="560" y="294">SessionEnd / timeout utan events → stale</text>
+      </svg>
+    </div>
+    <figcaption>Figur 3. Förenklad statusmaskin. Subagenter får egna understatusar inom <em>working</em>.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>working</strong>: med detaljer om aktuellt verktyg (från <code>PreToolUse</code>) och om subagenter kör.</li>
+    <li><strong>waiting_permission</strong>: agenten är blockerad tills du svarar. Högst prioritet i inkorgen.</li>
+    <li><strong>waiting_input</strong>: turen är klar och agenten väntar på nästa prompt. Tiden här är din ”reaktionstid”.</li>
+    <li><strong>stale</strong>: inga events på länge (krasch, stängd terminal utan <code>SessionEnd</code>, eller fastnat).</li>
+  </ul>
+</section>
+
+<section id="datamodell">
+  <h2>8. Händelseformat och datamodell</h2>
+  <h3>Gemensamt händelseformat (envelope)</h3>
+  <p>Varje adapter översätter sin harness till samma kuvert. Originalet sparas i <code>raw</code> så att inget går förlorat.</p>
+<pre><code>{
+  "id": "01JD3K…",                  // ULID, genereras av korpen (idempotens)
+  "ts": "2026-10-30T14:02:11.384Z",
+  "harness": "claude-code",          // claude-code | cowork | codex | gemini | sdk
+  "harness_version": "2.x",
+  "host": "macbook-karl",
+  "session_id": "abc123",
+  "parent_session_id": null,         // för subagenter
+  "type": "turn.started",            // normaliserad typ
+  "cwd": "/Users/karl/code/oden",
+  "repo": "careskar/oden", "branch": "main",
+  "data": { "prompt_chars": 412, "prompt": "…" },
+  "raw": { "hook_event_name": "UserPromptSubmit", … }
+}</code></pre>
+
+  <h3>Normaliserade typer</h3>
+  <p><code>session.started</code>, <code>session.ended</code>, <code>turn.started</code>, <code>turn.ended</code>, <code>tool.started</code>, <code>tool.ended</code>, <code>tool.failed</code>, <code>permission.requested</code>, <code>permission.resolved</code>, <code>context.compacted</code>, <code>context.sampled</code>, <code>agent.spawned</code>, <code>agent.finished</code>, <code>notification</code>.</p>
+
+  <h3>Tabeller (läsmodell)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tabell</th><th>Viktiga kolumner</th></tr></thead>
+      <tbody>
+        <tr><td><code>events</code></td><td>id, ts, harness, host, session_id, type, data (JSON), raw (JSON)</td></tr>
+        <tr><td><code>sessions</code></td><td>id, harness, host, repo, branch, model, status, current_tool, context_pct, started_at, last_event_at, ended_at, title</td></tr>
+        <tr><td><code>turns</code></td><td>session_id, n, prompt_id, started_at, ended_at, agent_ms, human_wait_ms, tool_calls, permission_prompts, input_tokens, output_tokens, model</td></tr>
+        <tr><td><code>prompts</code></td><td>id, session_id, ts, text, chars, words, has_attachments, tags</td></tr>
+        <tr><td><code>tool_calls</code></td><td>session_id, turn_n, tool, started_at, duration_ms, ok, permission (auto/asked/denied)</td></tr>
+        <tr><td><code>daily_stats</code></td><td>day, harness, sessions, turns, active_ms, wait_ms, tokens, cost, …</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="statistik">
+  <h2>9. Statistik och mätvärden</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Hur jag promptar</h3>
+      <ul>
+        <li>Promptlängd (tecken/ord), fördelning och trend</li>
+        <li>Prompter per session, uppföljningar kontra nya uppgifter</li>
+        <li>Andel korrigerande prompter (”nej, inte så”, avbrutna turer)</li>
+        <li>Tid på dygnet och veckodag</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Hur agenterna jobbar</h3>
+      <ul>
+        <li>Agenttid per tur (median, p90), längsta autonoma körning</li>
+        <li>Verktygsanvändning och felfrekvens per verktyg</li>
+        <li>Subagenter per session, parallella sessioner</li>
+        <li>Modellval per uppgiftstyp och repo</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Hur mycket jag behövs</h3>
+      <ul>
+        <li>Manuella ingrepp per timme agentarbete</li>
+        <li>Tillståndsfrågor: antal, godkänd/nekad, per verktyg (underlag för bättre allowlist)</li>
+        <li>Min svarstid: tid i <em>waiting_*</em></li>
+        <li>Kvot autonom tid / väntetid</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Kontext och kostnad</h3>
+      <ul>
+        <li>Kontextfyllnad över sessionens livstid</li>
+        <li>Komprimeringar per session, fyllnad vid komprimering</li>
+        <li>Tokens in/ut, cache-träffar, kostnad per session, repo och dag</li>
+        <li>Kostnad per avslutad uppgift (kopplat till commit/PR)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="harnesses">
+  <h2>10. Stöd för flera harnesses</h2>
+  <p>Varje harness får en <em>adapter</em> som mappar dess events till det gemensamma formatet. Statusmaskinen och statistiken bryr sig bara om de normaliserade typerna.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Harness</th><th>Mekanism</th><th>Status i planen</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code (CLI, IDE, desktop)</td><td>Hooks i <code>~/.claude/settings.json</code> eller som plugin + transkript + statusrad + OTel</td><td><span class="tag ok">PoC</span></td></tr>
+        <tr><td>Claude Code on the web / moln</td><td>Hooks i repots <code>.claude/settings.json</code> (eller plugin) som POSTar till hostad ingest. Kräver att nätverkspolicyn tillåter värden.</td><td><span class="tag info">Fas 4</span></td></tr>
+        <tr><td>Claude Cowork</td><td>Bygger på Claude Agent SDK. Undersök i PoC om plugins med hooks laddas där. Annars: läs sessionsloggar lokalt eller använd OTel.</td><td><span class="tag warn">Verifiera i PoC</span></td></tr>
+        <tr><td>Egna agenter (Agent SDK)</td><td>Hooks som callbacks i koden, ett litet <code>oden-sdk</code>-paket</td><td><span class="tag info">Fas 4</span></td></tr>
+        <tr><td>Codex CLI, Gemini CLI, Cursor m.fl.</td><td>Egna hook- och notify-mekanismer och/eller OTel. Stödet varierar och förändras snabbt.</td><td><span class="tag info">Fas 4</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <p><strong>Risk:</strong> stödet för hooks i Cowork är den största osäkerheten i planen. Därför ska PoC:n testa Cowork tidigt. Om hooks saknas där är reservplanen att läsa sessionsfilerna i efterhand (sämre live-status, men full statistik).</p>
+  </div>
+</section>
+
+<section id="integritet">
+  <h2>11. Integritet och säkerhet</h2>
+  <ul>
+    <li><strong>Local-first:</strong> daemonen lyssnar bara på <code>127.0.0.1</code>. Inga prompter lämnar maskinen förrän du själv slår på synk eller hostad ingest.</li>
+    <li><strong>Prompttext är opt-in per källa:</strong> lagra bara längd och hash som standard. Hela texten sparas där du uttryckligen slår på det.</li>
+    <li><strong>Maskering:</strong> filtrera bort hemligheter (API-nycklar, tokens, <code>.env</code>-innehåll) i <code>tool_input</code>/<code>tool_response</code> innan lagring.</li>
+    <li><strong>Autentisering:</strong> token per maskin/harness för ingest, så att en läckt token kan återkallas separat.</li>
+    <li><strong>Hooks får aldrig påverka agenten:</strong> korpen returnerar alltid 0 och skriver inget till stdout, så att den aldrig blockerar eller ändrar beteendet.</li>
+  </ul>
+</section>
+
+<section id="faser">
+  <h2>12. Faser: PoC → MVP → vidare</h2>
+
+  <div class="phase">
+    <h3>Fas 0 – Proof of concept</h3>
+    <p class="meta">Mål: bevisa att vi kan få korrekt live-status och grundstatistik från Claude Code, och ta reda på vad som går i Cowork. Omfattning: några dagar.</p>
+    <ul class="check">
+      <li>Korp-skript (bash + jq + curl) registrerat för alla hook-events, skriver till <code>~/.oden/spool.jsonl</code></li>
+      <li>Logga några dagars riktiga sessioner och granska vilka fält som faktiskt kommer</li>
+      <li>Liten <code>oden ls</code>-CLI som läser spool-filen och visar sessioner med härledd status</li>
+      <li>Skript som läser transkript och räknar ut kontextfyllnad och tokens per tur</li>
+      <li>Testa Cowork: laddas hooks/plugins? Var ligger sessionsdata?</li>
+      <li>Mät korpens latens. Mål under 50 ms per event</li>
+    </ul>
+    <p><strong>Klart när:</strong> <code>oden ls</code> visar korrekt status för 3+ parallella Claude Code-sessioner, och vi vet hur Cowork ska kopplas in.</p>
+  </div>
+
+  <div class="phase">
+    <h3>Fas 1 – MVP</h3>
+    <p class="meta">Mål: något du använder varje dag. Omfattning: 1–2 veckor.</p>
+    <ul class="check">
+      <li>Oden-daemon (TypeScript) med <code>POST /ingest</code>, SQLite-händelselogg och statusmaskin</li>
+      <li>Byt till HTTP-hooks där det går, behåll spool-reserven och ladda upp spool vid omstart</li>
+      <li>Berikare för transkript: modell, tokens, kontext-%</li>
+      <li>Dashboard: live-lista, ”väntar på dig”-inkorg, sessionsdetalj med tidslinje</li>
+      <li>Promptarkiv med fritextsök</li>
+      <li>Desktop-notis när en session väntat på tillstånd längre än X sekunder</li>
+      <li>Paketera som Claude Code-plugin: installation med ett kommando</li>
+      <li>Cowork-adapter enligt resultatet från PoC</li>
+    </ul>
+    <p><strong>Klart när:</strong> du kan lämna terminalen och ändå veta vilken session som behöver dig, och se dagens statistik.</p>
+  </div>
+
+  <div class="phase">
+    <h3>Fas 2 – Statistik och insikter</h3>
+    <p class="meta">Omfattning: 1–2 veckor.</p>
+    <ul class="check">
+      <li>Statistikvyer: promptlängd, agenttid, väntetid, ingrepp, verktyg, modeller</li>
+      <li>Aggregattabeller och filtrering på period, repo, harness och modell</li>
+      <li>Import av historiska transkript (<code>~/.claude/projects</code>)</li>
+      <li>Veckorapport (HTML/mejl): ”så här jobbade du med agenter i veckan”</li>
+      <li>Förslag på allowlist utifrån vilka tillståndsfrågor du alltid godkänner</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h3>Fas 3 – OpenTelemetry och kostnad</h3>
+    <p class="meta">Omfattning: ca 1 vecka.</p>
+    <ul class="check">
+      <li>OTLP-mottagare i daemonen (<code>/v1/metrics</code>, <code>/v1/logs</code>)</li>
+      <li>Korrelera OTel-data med hook-sessioner via session-id</li>
+      <li>Kostnad per session, repo och dag, med budgetlarm</li>
+      <li>Valfri vidarebefordran till Grafana eller liknande</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h3>Fas 4 – Fler harnesses, fler maskiner och moln</h3>
+    <p class="meta">Omfattning: löpande.</p>
+    <ul class="check">
+      <li>Hostad ingest (t.ex. liten server med Postgres) med tokens per maskin</li>
+      <li>Repo-baserade hooks så att Claude Code on the web och andra moln-sessioner rapporterar in</li>
+      <li>Adaptrar för Codex CLI, Gemini CLI, Cursor och egna Agent SDK-agenter</li>
+      <li>Synk mellan lokal daemon och hostad instans</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h3>Fas 5 – Utbyggnad</h3>
+    <p class="meta">Välj utifrån vad statistiken visar att du behöver. Se nästa avsnitt.</p>
+  </div>
+</section>
+
+<section id="extra">
+  <h2>13. Fler idéer</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Idé</th><th>Varför</th><th>Insats</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Promptbibliotek</strong></td><td>Spara, versionera och tagga prompter som fungerar bra. Se vilka mallar som ger kortast tid till mål och minst ingrepp.</td><td><span class="tag info">Medel</span></td></tr>
+        <tr><td><strong>Koppling till Git</strong></td><td>Koppla sessioner till branch, commits och PR:er. Ger ”kostnad och tid per PR” och kopplar ihop med issue #2 (GitHub-analytics).</td><td><span class="tag info">Medel</span></td></tr>
+        <tr><td><strong>Fastnat-detektion</strong></td><td>Varna när en agent loopar: samma verktyg/fel om och om igen, eller många komprimeringar utan framsteg.</td><td><span class="tag ok">Liten</span></td></tr>
+        <tr><td><strong>Session-replay</strong></td><td>Spela upp en session som tidslinje från transkriptet. Bra för att förstå vad som gick snett.</td><td><span class="tag info">Medel</span></td></tr>
+        <tr><td><strong>Svara från dashboarden</strong></td><td>Godkänna tillstånd eller skicka nästa prompt från mobilen. Kräver dubbelriktad kanal och noggrann säkerhet. Utvärdera mot Remote Control, som redan finns i Claude Code.</td><td><span class="tag bad">Stor</span></td></tr>
+        <tr><td><strong>Policy via hooks</strong></td><td>Eftersom hooks kan blockera kan Oden även tillämpa regler centralt (t.ex. inga <code>git push --force</code>). Håll det separat från insamlingen så att telemetri aldrig kan blockera.</td><td><span class="tag info">Medel</span></td></tr>
+        <tr><td><strong>Kontextvarning</strong></td><td>Statusrad och notis när kontexten passerar 80 %, med förslag om att sammanfatta eller starta om.</td><td><span class="tag ok">Liten</span></td></tr>
+        <tr><td><strong>Uppgiftsklassning</strong></td><td>Låt en billig modell klassa varje prompt (bugfix, feature, research, refaktor) för statistik per uppgiftstyp.</td><td><span class="tag info">Medel</span></td></tr>
+        <tr><td><strong>Jämförelse mellan modeller</strong></td><td>Agenttid, ingrepp och kostnad per modell för liknande uppgifter.</td><td><span class="tag ok">Liten</span> (när data finns)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="fragor">
+  <h2>14. Öppna frågor</h2>
+  <ol>
+    <li>Ska prompttext lagras i klartext som standard, eller bara längd och hash tills du slår på det?</li>
+    <li>En maskin eller flera? Det avgör när vi behöver hostad ingest (fas 4 eller tidigare).</li>
+    <li>Är moln-sessioner (Claude Code on the web) viktiga redan i MVP:n?</li>
+    <li>Teknikval: TypeScript/Bun genomgående (förslaget), eller Python för analysdelen?</li>
+    <li>Hur viktig är mobilen: räcker notiser, eller vill du kunna svara därifrån?</li>
+  </ol>
+  <p>Föreslaget nästa steg: bryt ner Fas 0 till issues och börja med korp-skriptet och <code>oden ls</code>.</p>
+</section>
+
+<footer>
+  Oden · plan för <a href="https://github.com/careskar/oden/issues/1">issue #1</a> · 2026-10-30. Hook-namn och fält bygger på Claude Codes dokumentation i skrivande stund och verifieras i PoC:n.
+</footer>
+
+</main>
+</body>
+</html>
