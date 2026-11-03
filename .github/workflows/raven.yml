@@ -1,0 +1,25 @@
+name: raven
+
+on:
+  push:
+    paths: ["raven/**", ".github/workflows/raven.yml"]
+  pull_request:
+    paths: ["raven/**", ".github/workflows/raven.yml"]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: command -v jq || (brew install jq || sudo apt-get install -y jq)
+      - name: Shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -S warning raven/raven raven/install.sh raven/bench.sh
+      - name: Test
+        run: ./raven/test.sh
+      - name: Latency
+        run: ./raven/bench.sh 100 2000

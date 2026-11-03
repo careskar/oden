@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Korpen (raven): Oden's hook collector.
+#
+# Registered as a command hook for every Claude Code hook event. Reads the
+# event JSON from stdin, wraps it in an envelope and appends one line to the
+# spool file. Optionally POSTs the line to the Oden daemon in the background.
+#
+# Contract with the harness: never block, never print to stdout, always exit 0.
+# Must stay compatible with bash 3.2 (the default bash on macOS).
+#
+# Environment:
+#   ODEN_HOME        base directory (default: ~/.oden)
+#   ODEN_HARNESS     harness name in the envelope (default: claude-code)
+#   ODEN_INGEST_URL  if set, POST each event there in the background
+#                    (e.g. http://localhost:4747/ingest)
+#   ODEN_DISABLE     if set to 1, do nothing
+
+[ "${ODEN_DISABLE:-}" = "1" ] && exit 0
+
+# Nothing we do may reach the harness: stdout is never used, stderr goes to a log.
+exec 1>/dev/null
+
+ODEN_HOME="${ODEN_HOME:-$HOME/.oden}"
+spool="$ODEN_HOME/spool.jsonl"
+lock="$ODEN_HOME/spool.lock"
+errlog="$ODEN_HOME/raven.err"
+
+mkdir -p "$ODEN_HOME" 2>/dev/null || exit 0
+exec 2>>"$errlog"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) raven: jq not found, event dropped" >&2
+  exit 0
+fi
+
+# 16 random bytes for the ULID's random part (each byte mod 32 is uniform).
+rnd=$(od -An -N16 -tu1 /dev/urandom 2>/dev/null)
+
+# Read all of stdin as a string so that invalid JSON is kept instead of lost.
+line=$(jq -cRs \
+  --arg harness "${ODEN_HARNESS:-claude-code}" \
+  --arg host "${HOSTNAME:-unknown}" \
+  --arg rnd "$rnd" '
+  def b32: "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  def mod($a; $b): $a - $b * (($a / $b) | floor);
+  def enc_time($ms):
+    reduce range(10) as $i ({n: $ms, s: ""};
+      mod(.n; 32) as $d | .s = b32[$d:$d+1] + .s | .n = ((.n / 32) | floor))
+    | .s;
+  def enc_rand:
+    [$rnd | splits("[[:space:]]+") | select(length > 0) | tonumber]
+    | if length < 16 then . + [range(16 - length) | 0] else . end
+    | map(mod(.; 32) as $d | b32[$d:$d+1]) | add;
+
+  now as $t
+  | ($t * 1000 | floor) as $ms
+  | (. as $s | try fromjson catch {unparsed: $s}) as $raw
+  | {
+      v: 1,
+      id: (enc_time($ms) + enc_rand),
+      received_at: (($t | floor | todate)[:-1] + "." + ("00" + (mod($ms; 1000) | tostring))[-3:] + "Z"),
+      harness: $harness,
+      host: $host,
+      event: (if ($raw | type) == "object" then $raw.hook_event_name else null end),
+      session_id: (if ($raw | type) == "object" then $raw.session_id else null end),
+      raw: $raw
+    }
+') || exit 0
+
+# Serialise appends across parallel sessions. mkdir is atomic and portable
+# (flock(1) is not available on macOS). Give up waiting after ~1 s and treat
+# the lock as stale.
+tries=0
+until mkdir "$lock" 2>/dev/null; do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 200 ]; then
+    rmdir "$lock" 2>/dev/null
+    mkdir "$lock" 2>/dev/null
+    break
+  fi
+  sleep 0.005
+done
+printf '%s\n' "$line" >>"$spool"
+rmdir "$lock" 2>/dev/null
+
+if [ -n "${ODEN_INGEST_URL:-}" ] && command -v curl >/dev/null 2>&1; then
+  # Fully detached: no inherited fds, so the harness never waits for it.
+  printf '%s' "$line" | curl -s -m 1 -X POST \
+    -H 'Content-Type: application/json' \
+    --data-binary @- "$ODEN_INGEST_URL" >/dev/null 2>&1 &
+fi
+
+exit 0
