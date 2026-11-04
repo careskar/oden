@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oden – referensanalys</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --surface-2: #efede6;
+    --text: #1d1c1a;
+    --muted: #5e5b54;
+    --border: #d9d5ca;
+    --accent: #2f5d8a;
+    --accent-soft: #dde8f3;
+    --ok: #2e7d4f;
+    --ok-soft: #dcefe3;
+    --warn: #a3620a;
+    --warn-soft: #f6e8d2;
+    --bad: #a23a3a;
+    --bad-soft: #f4dede;
+    --code-bg: #f0eee8;
+    --diagram-stroke: #4a4740;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413;
+      --surface: #1d1d1b;
+      --surface-2: #26261f;
+      --text: #ecebe6;
+      --muted: #a8a59c;
+      --border: #3a3933;
+      --accent: #7fb0e0;
+      --accent-soft: #1f3247;
+      --ok: #6cc28f;
+      --ok-soft: #1c3427;
+      --warn: #e3a94f;
+      --warn-soft: #3a2c15;
+      --bad: #e48686;
+      --bad-soft: #3d2121;
+      --code-bg: #242420;
+      --diagram-stroke: #b8b5ab;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413;
+    --surface: #1d1d1b;
+    --surface-2: #26261f;
+    --text: #ecebe6;
+    --muted: #a8a59c;
+    --border: #3a3933;
+    --accent: #7fb0e0;
+    --accent-soft: #1f3247;
+    --ok: #6cc28f;
+    --ok-soft: #1c3427;
+    --warn: #e3a94f;
+    --warn-soft: #3a2c15;
+    --bad: #e48686;
+    --bad-soft: #3d2121;
+    --code-bg: #242420;
+    --diagram-stroke: #b8b5ab;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.hero { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 8px; }
+  .eyebrow { color: var(--accent); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 8px 0 12px; }
+  h2 { font-size: 24px; margin: 56px 0 12px; padding-top: 8px; }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  .lede { font-size: 18px; color: var(--muted); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+
+  nav.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+  nav.toc ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { break-inside: avoid; }
+  @media (max-width: 600px) { nav.toc ol { columns: 1; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .grid .card { margin: 0; }
+  .card h3 { margin-top: 0; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+  p code, li code { overflow-wrap: anywhere; }
+
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.bad { background: var(--bad-soft); color: var(--bad); }
+  .tag.info { background: var(--accent-soft); color: var(--accent); }
+
+  .pros, .cons { margin: 6px 0; padding-left: 20px; }
+  .pros li::marker { content: "+  "; color: var(--ok); font-weight: 700; }
+  .cons li::marker { content: "−  "; color: var(--bad); font-weight: 700; }
+
+  figure { margin: 20px 0; }
+  figure .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  figure svg { display: block; width: 100%; height: auto; min-width: 640px; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  svg .box { fill: var(--surface-2); stroke: var(--diagram-stroke); stroke-width: 1.2; }
+  svg .box.accent { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .box.ok { fill: var(--ok-soft); stroke: var(--ok); }
+  svg .box.warn { fill: var(--warn-soft); stroke: var(--warn); }
+  svg .zone { fill: none; stroke: var(--border); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  svg .t { fill: var(--text); font: 600 13px ui-sans-serif, system-ui, sans-serif; }
+  svg .s { fill: var(--muted); font: 11.5px ui-sans-serif, system-ui, sans-serif; }
+  svg .z { fill: var(--muted); font: 600 11px ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; }
+  svg .line { stroke: var(--diagram-stroke); stroke-width: 1.4; fill: none; }
+  svg .line.dash { stroke-dasharray: 4 3; }
+  svg .arrowhead { fill: var(--diagram-stroke); }
+
+  .phase { position: relative; padding-left: 28px; border-left: 2px solid var(--border); margin-left: 8px; padding-bottom: 8px; }
+  .phase::before { content: ""; position: absolute; left: -9px; top: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
+  .phase h3 { margin-top: 0; }
+  .phase .meta { color: var(--muted); font-size: 14px; margin-top: -4px; }
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 26px; position: relative; }
+  .check li::before { content: "☐"; position: absolute; left: 2px; color: var(--muted); }
+
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<header class="hero">
+  <div class="eyebrow">Oden · Analys av referensprojekt</div>
+  <h1>Hur herdr, T3 Code, Orca och Paseo samlar in agentdata</h1>
+  <p class="lede">En genomgång av fyra öppna projekt som kör många agenter, modeller och harnesses samtidigt. För varje projekt: hur de får fram status, prompter, tokens, kostnad och historik, vilka fallgropar de har hittat, och vad Oden bör ta efter.</p>
+  <p class="meta" style="color:var(--muted);font-size:14px">Underlag: källkod och dokumentation i <code>herdrdev/herdr@ee5bfb5</code>, <code>pingdotgg/t3code@9e85538</code>, <code>stablyai/orca@c866025</code> och <code>getpaseo/paseo@a91bb4d</code>, läst 2026-11-04. Jämförs mot <a href="plan.html">Odens systemplan</a>.</p>
+</header>
+
+<nav class="toc">
+  <strong>Innehåll</strong>
+  <ol>
+    <li><a href="#sammanfattning">Sammanfattning</a></li>
+    <li><a href="#oversikt">De fyra projekten i korthet</a></li>
+    <li><a href="#herdr">herdr</a></li>
+    <li><a href="#t3code">T3 Code</a></li>
+    <li><a href="#orca">Orca</a></li>
+    <li><a href="#paseo">Paseo</a></li>
+    <li><a href="#jamforelse">Jämförelse per datapunkt</a></li>
+    <li><a href="#fallgropar">Fallgropar i Claude Code-hooks</a></li>
+    <li><a href="#funktioner">Funktioner att ta in i Oden</a></li>
+    <li><a href="#inte">Sådant vi inte bör kopiera</a></li>
+    <li><a href="#plan">Ändringar i Odens plan</a></li>
+    <li><a href="#kallor">Källor i koden</a></li>
+  </ol>
+</nav>
+
+<section id="sammanfattning">
+  <h2>1. Sammanfattning</h2>
+  <div class="callout">
+    <p><strong>Odens grundval håller.</strong> Alla fyra projekten landar i samma lösning som planen: hooks för status i realtid, agentens egna transkript för tokens och historik, och en lokal daemon som normaliserar till ett eget format. Ingen av dem använder en API-proxy. Ingen av dem förlitar sig på OpenTelemetry för användardata.</p>
+  </div>
+  <p>Det som skiljer dem från Oden är att de <em>äger sessionen</em>. herdr och Orca äger terminalen som agenten kör i, och T3 Code och Paseo startar agenten själva via Agent SDK eller app-server-protokoll. Oden ska bara observera sessioner som startas var som helst. Det gör Oden enklare, men vi går miste om två signaler de har: skärmen och tangentbordet.</p>
+  <p>De viktigaste lärdomarna för Oden:</p>
+  <ol>
+    <li><strong>Fler hook-events behövs, och några betyder något annat än man tror.</strong> <code>StopFailure</code>, <code>PostCompact</code>, <code>Elicitation</code>, <code>TeammateIdle</code> och <code>Notification</code> med <code>idle_prompt</code> saknas i planen. <code>PreCompact</code> kan komma även när komprimeringen avbryts, och <code>Stop</code> kommer inte alls när du avbryter en tur.</li>
+    <li><strong>Tokens från transkriptet räknas lätt dubbelt.</strong> Claude Code skriver en rad per innehållsblock, och varje rad upprepar hela <code>usage</code>-objektet. T3 Code mätte en överräkning på ungefär 2,4 gånger. Lösningen är att deduplicera på <code>message.id</code> + <code>requestId</code>.</li>
+    <li><strong>Statusraden ger 5-timmars- och veckogränserna</strong> (<code>rate_limits</code>) för prenumerationskonton. Orca läser dem därifrån, med strypning, i stället för att fråga ett API.</li>
+    <li><strong>Insamlaren ska tåla att daemonen startas om på ny port.</strong> Orca låter hook-skriptet läsa en endpoint-fil vid varje anrop, så att långlivade sessioner hittar rätt även efter omstart.</li>
+    <li><strong>”Klar tills du har sett den”</strong> är ett eget tillstånd i alla fyra. Det är den mest användbara inkorgssignalen och den saknas i Odens statusmaskin.</li>
+    <li><strong>Kostnad kan räknas lokalt redan i fas 2</strong> med LiteLLM:s öppna prislista plus egna överstyrningar, precis som T3 Code gör. OpenTelemetry behövs inte för det.</li>
+  </ol>
+</section>
+
+<section id="oversikt">
+  <h2>2. De fyra projekten i korthet</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Projekt</th><th>Vad det är</th><th>Teknik</th><th>Förhållande till agenten</th><th>Huvudkälla för status</th></tr></thead>
+    <tbody>
+      <tr><td><strong>herdr</strong></td><td>Terminalmultiplexer för kodagenter (som tmux, med agentstatus)</td><td>Rust, en binär, TUI</td><td>Äger terminalen (PTY). Startar inte agenten.</td><td>Skärmdetektion med regelmanifest + PTY-aktivitet. Hooks bara för sessions-id.</td></tr>
+      <tr><td><strong>T3 Code</strong></td><td>GUI och mobilapp som styr agenter på din dator</td><td>TypeScript, Effect, Node-server, web/Electron/React Native</td><td>Startar agenten via Agent SDK, Codex app-server, ACP m.fl.</td><td>Agentens eget strömprotokoll, normaliserat till egna events.</td></tr>
+      <tr><td><strong>Orca</strong></td><td>IDE för parallella agenter i egna worktrees</td><td>TypeScript, Electron</td><td>Äger terminalen och installerar hooks i varje agent.</td><td>Hooks som POSTar till en lokal hook-server, plus OSC 7501 från terminalströmmen.</td></tr>
+      <tr><td><strong>Paseo</strong></td><td>Daemon + mobil/desktop/CLI för att köra och följa agenter</td><td>TypeScript, Expo, Electron</td><td>Startar agenten via Agent SDK, men har även terminaler med hooks.</td><td>Agentens ström för egna agenter, hooks för terminal-agenter.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Två grupper alltså: <strong>terminalägare</strong> (herdr, Orca) som ser vad du ser, och <strong>wrappers</strong> (T3 Code, Paseo) som pratar direkt med agenten. Oden är en tredje sort: en <strong>observatör</strong> utan egen terminal. Det som är mest överförbart är därför Orcas och Paseos hook-arbete och T3 Codes och Orcas transkriptläsning.</p>
+</section>
+
+<section id="herdr">
+  <h2>3. herdr</h2>
+  <h3>Så samlar herdr in data</h3>
+  <div class="grid">
+    <div class="card">
+      <h3>Skärmdetektion <span class="tag info">huvudkälla</span></h3>
+      <p>herdr läser de nedersta raderna i varje panels terminalbuffert och matchar dem mot ett TOML-manifest per agent (<code>src/detect/manifests/claude.toml</code> m.fl., 22 agenter). Reglerna har prioritet, region (t.ex. <code>bottom_non_empty_lines(12)</code> eller <code>osc_title</code>) och AND/OR/NOT-villkor. Exempel: Claudes spinner i fönstertiteln betyder <code>working</code>, och ”Do you want to proceed?” betyder <code>blocked</code>.</p>
+      <p>Manifesten uppdateras från herdr.dev utan ny release. Lokala överstyrningar i <code>~/.config/herdr/agent-detection/</code> vinner alltid.</p>
+    </div>
+    <div class="card">
+      <h3>Hooks <span class="tag info">identitet</span></h3>
+      <p>Claude-integrationen lyssnar bara på <code>SessionStart</code> och skickar <code>session_id</code>, <code>transcript_path</code> och <code>source</code> till herdrs Unix-socket. Det används för att kunna återuppta sessionen med <code>claude --resume</code> efter omstart, inte för status. Subagenter (<code>agent_id</code> satt) och Cursor (som importerar Claudes hooks) filtreras bort.</p>
+    </div>
+    <div class="card">
+      <h3>Rapport-API för agenter</h3>
+      <p>Agenter som vill kan själva rapportera <code>idle</code>/<code>working</code>/<code>blocked</code> med <code>herdr pane report-agent</code>. Varje rapport har ett <code>--seq</code> som måste öka; äldre eller sena rapporter ignoreras. Rapporter vinner över skärmdetektionen så länge de kommer.</p>
+    </div>
+    <div class="card">
+      <h3>Events och väntan</h3>
+      <p>Socket-API:t har <code>events.subscribe</code> med filter (t.ex. bara <code>blocked</code>). Historiken är inte beständig: halkar en prenumerant efter får den <code>events_lost</code> och ska läsa en ny ögonblicksbild. <code>herdr agent wait --until blocked|done</code> låter skript vänta på en agents tillstånd.</p>
+    </div>
+  </div>
+  <h3>Värt att notera</h3>
+  <ul>
+    <li><strong>Strikt ”blocked”.</strong> herdr markerar bara <code>blocked</code> när en känd dialog syns. Annars blir det <code>idle</code>, med motiveringen att automatik som litar på fel status kan skriva in i en godkännandedialog.</li>
+    <li><strong><code>herdr agent explain</code></strong> visar vilken regel som matchade, vilken manifestversion som användes och varför. Ett bra mönster för Oden: förklara härledd status utifrån vilka events som kom.</li>
+    <li><strong>Rollup:</strong> en blockerad agent gör hela fliken och arbetsytan blockerad. En klar agent förblir ”done” tills du tittat på den.</li>
+    <li><strong>Integrationer versioneras.</strong> Skripten innehåller <code>HERDR_INTEGRATION_VERSION=11</code>, och <code>herdr integration status</code> visar vad som är installerat. Avinstallation tar bara bort herdrs egna rader.</li>
+  </ul>
+</section>
+
+<section id="t3code">
+  <h2>4. T3 Code</h2>
+  <h3>Så samlar T3 Code in data</h3>
+  <div class="grid">
+    <div class="card">
+      <h3>Egen orkestrering <span class="tag info">huvudkälla</span></h3>
+      <p>T3 Code startar agenten och tar emot dess ström. Varje provider har en adapter som översätter till egna events. Modellen är en graf: <code>Project → AppThread → Run → ExecutionNode</code>, plus <code>ProviderThread</code> och <code>ProviderSession</code> för agentens egna id:n.</p>
+      <p>Bara de normaliserade eventen är beständiga. Rådata från providern sparas för felsökning, men den bär inte appens tillstånd.</p>
+    </div>
+    <div class="card">
+      <h3>Sekvens och ögonblicksbild</h3>
+      <p>Varje lagrat event får ett ökande <code>sequence</code> av lagret. Klienter läser en ögonblicksbild vid sekvens N och strömmar sedan allt med sekvens &gt; N. Det ger korrekt återanslutning utan dubbletter.</p>
+    </div>
+    <div class="card">
+      <h3>Usage från transkript <span class="tag ok">direkt användbart</span></h3>
+      <p>Usage-vyn läser agenternas <em>egna</em> sessionsfiler, oavsett om T3 startade dem: <code>~/.claude/projects</code> (eller <code>CLAUDE_CONFIG_DIR</code>), <code>~/.codex/sessions</code>, OpenCodes SQLite m.fl. Filerna cachas på storlek och mtime så att bara ändrade filer läses om.</p>
+      <p>Priser hämtas från LiteLLM:s <code>model_prices_and_context_window.json</code>. Man kan ange egna priser per modell och mappa en modell till en annan (”räkna preview-modellen som den släppta”). Kostnaden kallas uttryckligen ”API-ekvivalent”, inte din faktura.</p>
+    </div>
+    <div class="card">
+      <h3>Gränser och konton</h3>
+      <p>5-timmars- och veckogränser hämtas via Agent SDK:s usage-anrop och Anthropics OAuth-usage-endpoint med den inloggning Claude Code redan har. Flera konton på flera maskiner slås ihop och räknas en gång.</p>
+    </div>
+  </div>
+  <h3>Detaljer från Claude-parsern</h3>
+  <p><code>apps/server/src/provider/Drivers/claudeUsage.ts</code> är den mest konkreta lärdomen för Odens berikare:</p>
+  <ul>
+    <li>Bara rader med <code>type: "assistant"</code> och <code>message.usage</code> räknas.</li>
+    <li>Modellen <code>&lt;synthetic&gt;</code> är lokala platshållare som aldrig nådde API:t och hoppas över.</li>
+    <li>Deduplicering på <code>message.id</code> + <code>requestId</code>. Utan den räknas ungefär 2,4 gånger för mycket.</li>
+    <li><code>usage.iterations</code> med typ <code>advisor_message</code> är anrop till en annan modell och blir egna rader med den modellens pris.</li>
+    <li><code>usage.speed === "fast"</code> har annat pris. <code>costUSD</code> används om den finns.</li>
+    <li>Tänkande tokens ingår i <code>output_tokens</code> och kan inte särskiljas.</li>
+  </ul>
+  <p>För att läsa hela konversationer (t.ex. vid import) använder T3 Code Agent SDK:s <code>getSessionMessages</code> i stället för att tolka JSONL själv. Det är ett stabilare kontrakt än det interna filformatet.</p>
+  <h3>Värt att notera</h3>
+  <ul>
+    <li><strong>Agenter utanför T3</strong> kan ansluta via en MCP-server (OAuth, läs-endast som standard) och läsa trådar och starta nya. Samma verktyg finns som <code>t3 thread start/send --wait</code> på värden.</li>
+    <li><strong>Mobilnotiser</strong> när en agent blir klar, misslyckas, behöver godkännande eller ställer en fråga, plus Live Activities på iOS och en hemskärmswidget med kvarvarande kvot.</li>
+    <li><strong>Telemetri</strong> skickar provider, modell, tider och tokens med hashade id:n, aldrig prompter eller svar. Ett bra mönster om Oden någonsin synkar till en hostad tjänst.</li>
+  </ul>
+</section>
+
+<section id="orca">
+  <h2>5. Orca</h2>
+  <p>Orca har det mest genomarbetade hook-systemet av de fyra, och det ligger närmast det Oden ska bygga. Allt i <code>src/main/agent-hooks/</code> och <code>src/main/claude/</code> är värt att läsa.</p>
+  <h3>Två kanaler</h3>
+  <div class="grid">
+    <div class="card">
+      <h3>Managed hooks <span class="tag ok">som Oden</span></h3>
+      <p>Orca installerar ett skript per agent som POSTar event-JSON till en hook-server på 127.0.0.1. Varje terminal får <code>ORCA_AGENT_HOOK_PORT</code>, <code>ORCA_AGENT_HOOK_TOKEN</code> och <code>ORCA_PANE_KEY</code>. Saknas de, eller misslyckas POST:en, skrivs eventet till en lokal spool. Samma upplägg som Odens korp.</p>
+      <p>Hooks ger: status, prompt, verktyg och indata, agentens svar, sessions-id, modell och subagenter.</p>
+    </div>
+    <div class="card">
+      <h3>OSC 7501 <span class="tag info">ny källa</span></h3>
+      <p>Program Status Protocol: agenten skriver sin egen status som en escape-sekvens i terminalströmmen (<code>ESC ] 7501 ; …</code>), med tillstånden <code>idle/working/done/blocked/error</code>, orsaken (<code>permission</code>, <code>question</code>, <code>auth</code>), en meddelanderad och barnposter för subagenter.</p>
+      <p>Claude Code skickar det sedan 2.1.295, men bara om terminalen svarar på en förfrågan. Det saknar prompt och sessions-id, så Orca använder det bara som reserv när hooks är tysta.</p>
+    </div>
+  </div>
+  <h3>Robusthet i insamlaren</h3>
+  <ul>
+    <li><strong>Endpoint-fil.</strong> Porten och token skrivs till <code>{userData}/agent-hooks/endpoint.env</code>, och skriptet läser in filen vid varje anrop. En session som startades före en omstart av Orca hittar då ändå rätt.</li>
+    <li><strong>Miljövariabler kan försvinna.</strong> <code>CLAUDE_CODE_SUBPROCESS_ENV_SCRUB</code> rensar miljön för hook-processer, så Orca återställer sina variabler innan skriptet läser dem.</li>
+    <li><strong>Alltid giltig stdout.</strong> Skriptet skriver <code>{}</code> först, eftersom Orca observerat att tillståndshooks kan ”stänga” (neka) när stdout är tom. Värt att verifiera i Odens PoC.</li>
+    <li><strong>Dubbla events från andra harnesses.</strong> Cursor, Devin, Grok och Qoder importerar Claudes hooks. Orca hoppar över eventet när t.ex. <code>DEVIN_PROJECT_DIR</code> är satt, så att det inte räknas som en Claude-session.</li>
+    <li><strong>Hook-data via stdin/fil, aldrig på kommandoraden.</strong> Undviker storleksgränser och att innehållet syns i processlistor.</li>
+    <li><strong>Versionsstyrd installation.</strong> Vilka events som installeras beror på Claude Codes version. <code>SessionEnd</code> installeras först från 2.1.261, eftersom leveransen var opålitlig före det.</li>
+  </ul>
+  <h3>Statusraden</h3>
+  <p>Orca installerar ett statusrads-skript som skickar statusradens JSON vidare, men bara när den innehåller <code>rate_limits</code> (prenumerationskonton) och högst en gång per intervall. Det ger 5-timmars- och veckogränser utan att fråga något API. Skriptet skriver ingenting själv, så användarens egen statusrad påverkas inte.</p>
+  <h3>Historik, sök och statistik</h3>
+  <ul>
+    <li><strong>AI Vault / Agent Session History</strong> skannar alla agenters sessionsfiler på disk och listar dem med titel, katalog, branch, modell, första prompt och senaste turer. Man kan söka (ett eget SQLite-index i <code>ai-vault-search/</code>), filtrera på arbetsyta/projekt/allt, och återuppta med rätt kommando (<code>claude --resume &lt;id&gt;</code>, <code>codex resume &lt;id&gt;</code> …) eller kopiera kommandot.</li>
+    <li><strong>Agent Dashboard</strong> är en kanban med kolumnerna <em>Needs You</em>, <em>Working</em>, <em>Done</em> och <em>Idle</em> (inget hänt på ca 30 min). Korten visar senaste meddelandet och den väntande frågan.</li>
+    <li><strong>Statistiken</strong> är tunn: antal agenter, total agenttid och antal PR:er. Oden siktar betydligt högre.</li>
+    <li><strong>Usage</strong> hämtas från <code>api.anthropic.com/api/oauth/usage</code> med Claude Codes inloggning, ungefär var 15:e minut när fönstret är aktivt, med varning vid 80 %.</li>
+  </ul>
+  <h3>Hook som fattar beslut</h3>
+  <p>Orca låter plugins svara på <code>PreToolUse</code>: skriptet väntar högst 8 sekunder, Orca svarar inom 6, och vid timeout eller fel skrivs <code>{}</code> så att anropet fortsätter som om Orca inte fanns. Det är en konkret mall för idén ”Policy via hooks” i Odens plan.</p>
+</section>
+
+<section id="paseo">
+  <h2>6. Paseo</h2>
+  <h3>Så samlar Paseo in data</h3>
+  <div class="grid">
+    <div class="card">
+      <h3>Egna agenter</h3>
+      <p>Daemonen startar Claude via Agent SDK, Codex via app-server och andra via ACP eller RPC. Varje provider implementerar samma <code>AgentClient</code>-gränssnitt och normaliserar verktygsanrop till en gemensam typ (shell, read, edit, write, search …). Providerns egen historik (t.ex. <code>~/.claude/projects/…jsonl</code>) är sanningskällan när en session återupptas.</p>
+    </div>
+    <div class="card">
+      <h3>Terminal-agenter via hooks</h3>
+      <p>Terminaler får <code>PASEO_TERMINAL_ID</code>, <code>PASEO_ACTIVITY_TOKEN</code>, <code>PASEO_TERMINAL_ACTIVITY_URL</code> och <code>PASEO_HOOK_CLI</code>. Hooken kör <code>paseo hooks claude &lt;event&gt;</code>, som översätter till ett grovt tillstånd och POSTar det. Saknas något blir det en no-op.</p>
+    </div>
+  </div>
+  <h3>Claude-mappningen och avbrott</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Claude-event</th><th>Paseos tillstånd</th></tr></thead>
+    <tbody>
+      <tr><td><code>UserPromptSubmit</code></td><td>running</td></tr>
+      <tr><td><code>Stop</code>, <code>StopFailure</code>, <code>SessionEnd</code></td><td>idle</td></tr>
+      <tr><td><code>Notification</code> med <code>notification_type = idle_prompt</code></td><td>needs-input</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Claude kör inte <code>Stop</code> när du avbryter en tur.</strong> Paseo ser Ctrl-C och Escape i terminalen och nollställer då statusen. Oden ser inte tangentbordet, men transkriptet får raden <code>[Request interrupted by user]</code> (Orca läser den) och nästa <code>UserPromptSubmit</code> avslutar ändå den gamla turen. Oden behöver hantera detta, annars fastnar sessionen i <code>working</code>.</p>
+  <h3>Uppmärksamhet och notiser</h3>
+  <ul>
+    <li><strong>Attention</strong> är ett eget fält: när något går från arbetar till klar sätts ”finished”, och det ligger kvar tills du läser chatten. Det skiljer ”klar och oläst” från ”klar och sedd”.</li>
+    <li><strong>Närvarostyrda notiser</strong> (<code>agent-attention-policy.ts</code>): klienterna skickar heartbeat med synlighet, fokuserad agent och senaste aktivitet. Tittar du redan på agenten skickas ingen notis. Har du varit aktiv i en klient de senaste 3 minuterna visas notisen där. Annars går den som push till mobilen. Fel ger ingen push.</li>
+    <li><strong>Live-ström + auktoritativ historik:</strong> klienten får deltan i realtid men kan alltid hämta hela tidslinjen sidvis och upptäcka luckor via sekvensnummer. Varje post har ett storlekstak (64 KiB för verktyg, 256 KiB annars) med en tydlig trunkeringsmarkör.</li>
+  </ul>
+  <h3>Övrigt</h3>
+  <ul>
+    <li>Usage för Claude, Codex, Copilot m.fl. ligger i separata plugins (<code>plugins/claude-usage-source</code>), som läser OAuth-token från <code>~/.claude/.credentials.json</code> eller nyckelringen.</li>
+    <li>All lagring är JSON-filer under <code>~/.paseo</code> med atomära skrivningar och Zod-scheman, utan migreringar.</li>
+    <li>Inga telemetridata alls, uttalat som en princip.</li>
+  </ul>
+</section>
+
+<section id="jamforelse">
+  <h2>7. Jämförelse per datapunkt</h2>
+  <p>Hur varje projekt får fram det Oden vill mäta, och vad det betyder för Oden.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Datapunkt</th><th>herdr</th><th>T3 Code</th><th>Orca</th><th>Paseo</th><th>Slutsats för Oden</th></tr></thead>
+    <tbody>
+      <tr><td>Status (jobbar/väntar/idle)</td><td>Skärm + PTY</td><td>Agentström</td><td>Hooks, OSC 7501 som reserv</td><td>Agentström / hooks</td><td>Hooks, som planerat. Lägg till fler events (avsnitt 8).</td></tr>
+      <tr><td>”Behöver dig”</td><td>Synlig dialog på skärmen</td><td>Agentens request-event</td><td><code>PermissionRequest</code>, <code>Elicitation</code>, AskUserQuestion</td><td><code>Notification idle_prompt</code></td><td><code>PermissionRequest</code> + <code>Elicitation</code> + <code>PreToolUse</code> för <code>AskUserQuestion</code>.</td></tr>
+      <tr><td>Prompttext</td><td>–</td><td>Egen inmatning</td><td><code>UserPromptSubmit</code></td><td>Egen inmatning</td><td><code>UserPromptSubmit</code>. Filtrera bort prompter som Claude själv skickar efter komprimering.</td></tr>
+      <tr><td>Tokens och modell</td><td>–</td><td>Transkript, deduplicerat</td><td>Transkript</td><td>Agentström</td><td>Transkript med T3 Codes dedupliceringsregler.</td></tr>
+      <tr><td>Kostnad</td><td>–</td><td>LiteLLM-priser + egna</td><td>Egen pristabell</td><td>–</td><td>LiteLLM-priser i fas 2. OTel blir valfritt.</td></tr>
+      <tr><td>Kontextfyllnad</td><td>–</td><td>Från agenten, mot modellens gräns</td><td>Statusrad</td><td>–</td><td>Statusrad, reserv: senaste <code>usage</code> i transkriptet.</td></tr>
+      <tr><td>5h/veckogränser</td><td>–</td><td>SDK + OAuth-endpoint</td><td>Statusrad + OAuth-endpoint</td><td>OAuth-endpoint (plugin)</td><td>Statusradens <code>rate_limits</code>. OAuth-endpointen är odokumenterad, så bara som opt-in.</td></tr>
+      <tr><td>Subagenter</td><td>Filtreras bort</td><td>ExecutionNode-träd</td><td><code>SubagentStart/Stop</code>, <code>TeammateIdle</code></td><td>Föräldra-id</td><td>Events med <code>agent_id</code> hör till subagenten och ska inte ändra huvudsessionens status.</td></tr>
+      <tr><td>Historik och resume</td><td>Resume via sessions-id</td><td>Import via SDK</td><td>Skannar alla sessionsfiler, resume-kommando</td><td>Providerns historik</td><td>Importera och lista sessioner med ett färdigt resume-kommando.</td></tr>
+      <tr><td>Ordning och dubbletter</td><td><code>seq</code> per källa</td><td>Sekvens från lagret</td><td>Revisionerade rader</td><td>Sekvens + sidvis hämtning</td><td>ULID från korpen <em>och</em> sekvens från lagret.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="fallgropar">
+  <h2>8. Fallgropar i Claude Code-hooks</h2>
+  <p>Det här är de konkreta problem som projekten har stött på och kodat runt. Planens statusmaskin behöver hantera alla.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fallgrop</th><th>Källa</th><th>Vad Oden ska göra</th></tr></thead>
+    <tbody>
+      <tr><td><code>Stop</code> kommer inte vid avbrott (Esc/Ctrl-C).</td><td>Paseo</td><td>Läs avbrottsraden i transkriptet. Låt nästa <code>UserPromptSubmit</code> avsluta föregående tur. Markera <code>working</code> utan events i N minuter som <code>stale</code>.</td></tr>
+      <tr><td>Fel från API eller modell ger <code>StopFailure</code> i stället för <code>Stop</code>.</td><td>Orca, Paseo</td><td>Registrera <code>StopFailure</code>, avsluta turen med <code>ok=false</code>.</td></tr>
+      <tr><td><code>PreCompact</code> kan komma även om komprimeringen avbryts. Manuell <code>/compact</code> ger inte alltid <code>Stop</code>.</td><td>Orca</td><td>Räkna komprimering på <code>PostCompact</code>. Låt inte <code>PreCompact</code> sätta <code>working</code>.</td></tr>
+      <tr><td><code>SessionStart</code> med <code>source=compact</code> är ingen ny session.</td><td>Orca, herdr</td><td>Bara <code>startup</code>, <code>resume</code> och <code>clear</code> börjar om. <code>compact</code> räknas som komprimering.</td></tr>
+      <tr><td>Claude skickar en egen <code>UserPromptSubmit</code> för att fortsätta efter komprimering.</td><td>Orca</td><td>Räkna den inte som din prompt, varken i promptarkivet eller i svarstiden.</td></tr>
+      <tr><td>Subagenter skickar egna <code>SessionStart</code>/<code>Stop</code> med <code>agent_id</code>.</td><td>herdr, Orca</td><td>Koppla dem till en underagent. Låt dem inte ändra huvudsessionens status.</td></tr>
+      <tr><td><code>Stop</code> kan komma medan bakgrundsagenter eller bakgrundsjobb fortfarande kör.</td><td>Orca, herdr</td><td>Inför underläget ”klar, bakgrundsarbete pågår” i stället för ren <code>waiting_input</code>.</td></tr>
+      <tr><td>MCP-dialoger blockerar på dig.</td><td>Orca</td><td>Registrera <code>Elicitation</code>/<code>ElicitationResult</code> som en form av <code>waiting_permission</code>.</td></tr>
+      <tr><td><code>SessionEnd</code> levererades opålitligt före 2.1.261.</td><td>Orca</td><td>Lita inte på <code>SessionEnd</code> ensamt. Timeout till <code>stale</code> behövs ändå.</td></tr>
+      <tr><td>Cursor, Devin, Grok och Qoder kör Claudes hooks.</td><td>herdr, Orca</td><td>Korpen sätter <code>harness</code> utifrån miljön (<code>CURSOR_VERSION</code>, <code>DEVIN_PROJECT_DIR</code> …) och fältet <code>cursor_version</code>.</td></tr>
+      <tr><td><code>CLAUDE_CODE_SUBPROCESS_ENV_SCRUB</code> kan rensa miljövariabler.</td><td>Orca</td><td>Låt korpen läsa sin konfiguration från fil (<code>~/.oden/endpoint</code>), inte bara från miljön.</td></tr>
+      <tr><td>Hook-schemat och event-namnen förändras mellan versioner.</td><td>Orca, herdr</td><td>Versionsstyrd installation, version i skriptet, och <code>oden integration status</code>.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="funktioner">
+  <h2>9. Funktioner att ta in i Oden</h2>
+  <p>Sorterat efter nytta per insats. Fasen anger var det passar in i <a href="plan.html#faser">planen</a>.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Funktion</th><th>Inspiration</th><th>Varför</th><th>Fas</th><th>Insats</th></tr></thead>
+    <tbody>
+      <tr><td><strong>”Klar, oläst”</strong> som eget tillstånd</td><td>herdr, Orca, Paseo</td><td>Den viktigaste inkorgssignalen: vad är klart och väntar på granskning? Kvitteras när du öppnar sessionen i dashboarden eller skickar nästa prompt.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Kanban-vy</strong>: Behöver dig · Jobbar · Klar · Idle</td><td>Orca</td><td>Ger överblick över många sessioner. Idle (t.ex. 30 min utan events) döljs som standard.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Närvarostyrda notiser</strong></td><td>Paseo</td><td>Ingen notis om du redan tittar. Push till mobilen bara när du inte varit aktiv på datorn de senaste minuterna.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Endpoint-fil + spool</strong> i korpen</td><td>Orca</td><td>Sessioner överlever att daemonen startas om eller byter port.</td><td>PoC</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong><code>oden explain &lt;session&gt;</code></strong></td><td>herdr</td><td>Visar vilka events som ledde till statusen. Gör statusmaskinen felsökbar och bygger förtroende.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong><code>oden wait &lt;session&gt; --until blocked|done</code></strong></td><td>herdr, T3 Code</td><td>Skript och andra agenter kan vänta på en session.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Gränser i statusraden och dashboarden</strong> (5h/vecka)</td><td>Orca, T3 Code</td><td>Visa hur nära du är en gräns, med varning vid 80 %. Data finns redan i statusradens JSON.</td><td>MVP</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Sessionshistorik med resume-kommando</strong></td><td>Orca (AI Vault)</td><td>Listar alla sessioner på disken, även från innan Oden fanns, med första prompt, branch och modell. Knappen ”kopiera <code>claude --resume</code>”.</td><td>Fas 2</td><td><span class="tag info">Medel</span></td></tr>
+      <tr><td><strong>Lokal kostnad</strong> med LiteLLM-priser, egna priser och modellmappning</td><td>T3 Code</td><td>Kostnad per session, repo och dag utan OTel. Märk den som ”API-ekvivalent”.</td><td>Fas 2</td><td><span class="tag info">Medel</span></td></tr>
+      <tr><td><strong>Rollup per repo/branch</strong></td><td>herdr, Paseo</td><td>En blockerad session gör repot blockerat i listan. Bra när du har många sessioner i samma repo.</td><td>Fas 2</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Policy-hook med timeout och ”fail open”</strong></td><td>Orca</td><td>Mall för idén ”Policy via hooks”: svara inom 6 s, annars fortsätter agenten. Separat skript från korpen.</td><td>Fas 5</td><td><span class="tag info">Medel</span></td></tr>
+      <tr><td><strong>MCP-server för Oden</strong></td><td>T3 Code, Paseo</td><td>Agenter kan fråga ”vilka sessioner väntar på mig?” eller ”vad kostade den här PR:en?”. Läs-endast som standard.</td><td>Fas 4</td><td><span class="tag info">Medel</span></td></tr>
+      <tr><td><strong>Webhooks eller plugin-events</strong> vid statusändringar</td><td>herdr, Orca</td><td>Låter användaren koppla egna saker (Slack, ljud, lampa) till ”blocked” eller ”klar”.</td><td>Fas 5</td><td><span class="tag ok">Liten</span></td></tr>
+      <tr><td><strong>Mobilwidget och Live Activity</strong></td><td>T3 Code</td><td>Kvarvarande kvot och pågående sessioner på hemskärmen.</td><td>Fas 5</td><td><span class="tag bad">Stor</span></td></tr>
+      <tr><td><strong>OSC 7501 via <code>oden run</code></strong></td><td>Orca</td><td>Om Oden en dag får ett eget PTY-omslag (<code>oden run claude</code>) kan det svara på förfrågan och få status även utan hooks.</td><td>Senare</td><td><span class="tag info">Medel</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="inte">
+  <h2>10. Sådant vi inte bör kopiera</h2>
+  <ul>
+    <li><strong>Att starta agenterna själv</strong> (T3 Code, Paseo). Det ger rikare data men låser in användaren i Odens gränssnitt. Odens styrka är att det fungerar med sessioner som startas var som helst.</li>
+    <li><strong>Skärmdetektion</strong> (herdr). Kräver att man äger terminalen och ett ständigt underhåll av regex per agentversion. herdr har ett helt uppdateringssystem bara för det.</li>
+    <li><strong>Odokumenterade API-anrop som standard.</strong> Orca, T3 Code och Paseo använder <code>/api/oauth/usage</code> med Claude Codes token. Det fungerar men är inget publikt kontrakt och hanterar dina inloggningsuppgifter. Statusraden räcker för gränserna. Erbjud endpointen högst som opt-in.</li>
+    <li><strong>Telemetri till tredje part</strong> (T3 Code → PostHog). Krockar med Odens local-first-princip. Paseos ”ingen telemetri” passar Oden bättre.</li>
+    <li><strong>Orcas komplexitet i statusreglerna.</strong> Den finns av goda skäl, men Oden har en fördel: allt sparas som rådata, så reglerna kan förbättras i efterhand och köras om. Börja enkelt och lägg till fall när loggen visar dem.</li>
+  </ul>
+</section>
+
+<section id="plan">
+  <h2>11. Ändringar i Odens plan</h2>
+  <div class="phase">
+    <h3>Fas 0 – PoC</h3>
+    <ul class="check">
+      <li>Registrera även <code>StopFailure</code>, <code>PostCompact</code>, <code>Elicitation</code>, <code>ElicitationResult</code>, <code>TeammateIdle</code> och <code>Notification</code>.</li>
+      <li>Korpen läser port och token från <code>~/.oden/endpoint</code> vid varje anrop, och sätter <code>harness</code> utifrån miljön så att Cursor, Devin m.fl. inte räknas som Claude Code.</li>
+      <li>Verifiera vad tom stdout gör för <code>PermissionRequest</code>/<code>PreToolUse</code>. Skriv <code>{}</code> om det behövs.</li>
+      <li>Testa avbrott (Esc) och <code>/compact</code> och se vilka events som faktiskt kommer.</li>
+      <li>Transkriptskriptet deduplicerar på <code>message.id</code> + <code>requestId</code>, hoppar över <code>&lt;synthetic&gt;</code> och räknar <code>advisor_message</code>-iterationer separat.</li>
+    </ul>
+  </div>
+  <div class="phase">
+    <h3>Fas 1 – MVP</h3>
+    <ul class="check">
+      <li>Statusmaskinen får tillstånden <code>done_unseen</code> och underläget ”bakgrundsarbete pågår”. Subagent-events (<code>agent_id</code>) hålls isär från huvudsessionen.</li>
+      <li>Statusrads-korpen skickar <code>rate_limits</code> och kontextfyllnad, strypt till t.ex. en gång per 30 s.</li>
+      <li>Kanban-vy, <code>oden explain</code>, <code>oden wait</code> och närvarostyrda notiser.</li>
+      <li>Varje lagrat event får en sekvens från SQLite. Live-strömmen (SSE) använder den som markör, så att dashboarden kan återansluta utan luckor.</li>
+      <li><code>oden integration install|status|uninstall</code> med version i skriptet. Avinstallation tar bara bort Odens egna rader.</li>
+    </ul>
+  </div>
+  <div class="phase">
+    <h3>Fas 2 – Statistik</h3>
+    <ul class="check">
+      <li>Import av historik med inkrementell läsning (cache på storlek och mtime), plus sessionslista med resume-kommando.</li>
+      <li>Kostnad från LiteLLM:s prislista med egna priser och modellmappning. Flyttas hit från fas 3.</li>
+      <li>Överväg Agent SDK:s <code>getSessionMessages</code> för att läsa hela konversationer i stället för att tolka JSONL direkt.</li>
+    </ul>
+  </div>
+  <div class="phase">
+    <h3>Fas 3–5</h3>
+    <ul class="check">
+      <li>OpenTelemetry blir valfritt: för den som redan har Grafana eller vill ha exakt kostnad, inte en förutsättning.</li>
+      <li>MCP-server, webhooks och policy-hook enligt avsnitt 9.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="kallor">
+  <h2>12. Källor i koden</h2>
+  <p>Filerna som analysen bygger mest på, om du vill läsa vidare.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Repo</th><th>Fil</th><th>Innehåll</th></tr></thead>
+    <tbody>
+      <tr><td>herdr</td><td><code>src/detect/mod.rs</code>, <code>src/detect/manifests/claude.toml</code></td><td>Statusdetektion från skärmen</td></tr>
+      <tr><td>herdr</td><td><code>src/integration/assets/claude/herdr-agent-state.sh</code></td><td>Claude-hooken (bara SessionStart)</td></tr>
+      <tr><td>herdr</td><td><code>docs/next/website/src/content/docs/add-herdr-support.mdx</code>, <code>socket-api.mdx</code>, <code>agents.mdx</code></td><td>Rapport-API, seq, events, explain, rollup</td></tr>
+      <tr><td>T3 Code</td><td><code>apps/server/src/provider/Drivers/claudeUsage.ts</code></td><td>Tokens från Claudes transkript, deduplicering</td></tr>
+      <tr><td>T3 Code</td><td><code>apps/server/src/usage/</code>, <code>docs/user/usage.md</code></td><td>Skanning, cache, priser, gränser</td></tr>
+      <tr><td>T3 Code</td><td><code>docs/orchestration-v2/core-graph-and-data-model.md</code></td><td>Datamodell, sekvens och ögonblicksbild</td></tr>
+      <tr><td>T3 Code</td><td><code>docs/user/outside-agents.md</code>, <code>docs/user/telemetry.md</code></td><td>MCP för externa agenter, telemetriprinciper</td></tr>
+      <tr><td>Orca</td><td><code>src/main/agent-hooks/README.md</code></td><td>Hooks kontra OSC 7501, beslutshooks</td></tr>
+      <tr><td>Orca</td><td><code>src/main/claude/claude-managed-hook-events.ts</code>, <code>hook-script.ts</code>, <code>statusline-script.ts</code></td><td>Eventlista, hook-skript, statusrad</td></tr>
+      <tr><td>Orca</td><td><code>src/shared/agent-hook-listener/providers/claude-events.ts</code></td><td>Från Claude-event till status</td></tr>
+      <tr><td>Orca</td><td><code>src/shared/program-status/protocol.ts</code></td><td>OSC 7501-formatet</td></tr>
+      <tr><td>Orca</td><td><code>docs/site/content/docs/agents/</code></td><td>Usage, sessionshistorik, hooks</td></tr>
+      <tr><td>Paseo</td><td><code>docs/terminal-activity.md</code>, <code>docs/agent-lifecycle.md</code></td><td>Hook-mappning, avbrott, livscykel</td></tr>
+      <tr><td>Paseo</td><td><code>packages/server/src/server/agent-attention-policy.ts</code></td><td>Närvarostyrda notiser</td></tr>
+      <tr><td>Paseo</td><td><code>docs/timeline-sync.md</code>, <code>docs/architecture.md</code></td><td>Live-ström och historik, lagring</td></tr>
+    </tbody>
+  </table></div>
+  <p style="color:var(--muted);font-size:14px">Oden · analys av referensprojekt · 2026-11-04. Beteenden hos Claude Code bygger på vad projekten dokumenterat och kodat runt. Verifiera dem i Odens PoC.</p>
+</section>
+</main>
+</body>
+</html>
