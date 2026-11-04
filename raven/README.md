@@ -44,11 +44,13 @@ En JSON-rad per event:
 | `ODEN_HARNESS` | `claude-code` | Värdet i `harness` |
 | `ODEN_INGEST_URL` | (av) | Om satt, POST:as varje event i bakgrunden, t.ex. `http://localhost:4747/ingest` |
 | `ODEN_DISABLE` | (av) | `1` stänger av insamlingen helt |
+| `ODEN_LOCK_WAIT` | `3` | Sekunder (räknat från start) som Korpen väntar på spool-låset innan eventet läggs i `overflow/` |
 
 ## Garantier
 
 - Avslutar alltid med kod 0 och skriver aldrig till stdout. Fel loggas i `~/.oden/raven.err`.
-- Parallella sessioner skriver via ett lås (`mkdir`, eftersom `flock` saknas på macOS), så raderna blandas inte ihop även när payloaden är stor.
+- Parallella sessioner skriver via ett lås, så raderna blandas inte ihop även när payloaden är stor. Låset är en symlänk (`spool.lck`) som pekar på ägarens PID, eftersom `flock` saknas på macOS. En levande ägare behåller alltid låset. Bara ett lås vars ägare har dött, t.ex. dödats av hookens timeout, rensas bort.
+- Korpen skriver aldrig till spool-filen utan lås. Om låset fortfarande är upptaget efter `ODEN_LOCK_WAIT` sekunder sparas eventet i en egen fil i `~/.oden/overflow/` och en rad skrivs till `raven.err`. Ingest ska läsa även de filerna.
 - POST:en körs helt frikopplad med 1 s timeout. Om daemonen är nere finns eventet ändå i spool-filen.
 
 ## Test och latens

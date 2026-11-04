@@ -14,6 +14,7 @@
 #   ODEN_INGEST_URL  if set, POST each event there in the background
 #                    (e.g. http://localhost:4747/ingest)
 #   ODEN_DISABLE     if set to 1, do nothing
+#   ODEN_LOCK_WAIT   seconds to wait for the spool lock (default: 3)
 
 [ "${ODEN_DISABLE:-}" = "1" ] && exit 0
 
@@ -22,7 +23,10 @@ exec 1>/dev/null
 
 ODEN_HOME="${ODEN_HOME:-$HOME/.oden}"
 spool="$ODEN_HOME/spool.jsonl"
-lock="$ODEN_HOME/spool.lock"
+lock="$ODEN_HOME/spool.lck"
+# Seconds since start before giving up on the lock. Claude Code's hook timeout
+# is 5 s (see install.sh), so stay well below it.
+lock_wait="${ODEN_LOCK_WAIT:-3}"
 errlog="$ODEN_HOME/raven.err"
 
 mkdir -p "$ODEN_HOME" 2>/dev/null || exit 0
@@ -67,21 +71,35 @@ line=$(jq -cRs \
     }
 ') || exit 0
 
-# Serialise appends across parallel sessions. mkdir is atomic and portable
-# (flock(1) is not available on macOS). Give up waiting after ~1 s and treat
-# the lock as stale.
-tries=0
-until mkdir "$lock" 2>/dev/null; do
-  tries=$((tries + 1))
-  if [ "$tries" -ge 200 ]; then
-    rmdir "$lock" 2>/dev/null
-    mkdir "$lock" 2>/dev/null
-    break
+# Serialise appends across parallel sessions. The lock is a symlink whose
+# target names the holder's PID: creating it is atomic and portable (flock(1)
+# is not available on macOS), and waiters can tell a live holder from a dead
+# one. A live holder's lock is never broken, however long it takes. Only a
+# holder that died (crashed, or was killed by the hook timeout) is cleared.
+acquired=0
+while :; do
+  if ln -s "raven-$$" "$lock" 2>/dev/null; then acquired=1; break; fi
+  holder=$(readlink "$lock" 2>/dev/null)
+  holder="${holder#raven-}"
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+    # Re-check right before removing, so we only clear the dead holder's lock.
+    [ "$(readlink "$lock" 2>/dev/null)" = "raven-$holder" ] && rm -f "$lock"
+    continue
   fi
-  sleep 0.005
+  [ "$SECONDS" -ge "$lock_wait" ] && break
+  sleep 0.01
 done
-printf '%s\n' "$line" >>"$spool"
-rmdir "$lock" 2>/dev/null
+
+if [ "$acquired" = 1 ]; then
+  printf '%s\n' "$line" >>"$spool"
+  rm -f "$lock"
+else
+  # Never append without the lock: an interleaved line would corrupt the spool.
+  # Keep the event in a file of its own instead, for ingest to pick up.
+  mkdir -p "$ODEN_HOME/overflow" &&
+    printf '%s\n' "$line" >"$ODEN_HOME/overflow/$$.$RANDOM.jsonl"
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) raven: spool lock busy for ${lock_wait}s, event written to overflow/" >&2
+fi
 
 if [ -n "${ODEN_INGEST_URL:-}" ] && command -v curl >/dev/null 2>&1; then
   # Fully detached: no inherited fds, so the harness never waits for it.
