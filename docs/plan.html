@@ -163,6 +163,7 @@
     <li><a href="#status">Statusmaskin för sessioner</a></li>
     <li><a href="#datamodell">Händelseformat och datamodell</a></li>
     <li><a href="#statistik">Statistik och mätvärden</a></li>
+    <li><a href="#visualisering">Visualisering av events</a></li>
     <li><a href="#harnesses">Stöd för flera harnesses</a></li>
     <li><a href="#integritet">Integritet och säkerhet</a></li>
     <li><a href="#faser">Faser: PoC → MVP → vidare</a></li>
@@ -703,8 +704,91 @@ exit 0</code></pre>
   </div>
 </section>
 
+<section id="visualisering">
+  <h2>10. Visualisering av events</h2>
+  <p>Hook-events har ingen varaktighet, bara tidpunkter. För att visa hur lång tid saker tar parar vi ihop events till intervall:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Mått</th><th>Start → slut</th></tr></thead>
+      <tbody>
+        <tr><td>Verktygsanrop</td><td><code>PreToolUse</code> → <code>PostToolUse</code>/<code>PostToolUseFailure</code> med samma <code>tool_use_id</code></td></tr>
+        <tr><td>Agentens tur</td><td><code>UserPromptSubmit</code> → <code>Stop</code></td></tr>
+        <tr><td>Väntan på tillstånd</td><td><code>PermissionRequest</code> → nästa <code>PostToolUse</code> i sessionen</td></tr>
+        <tr><td>Din svarstid</td><td><code>Stop</code> → nästa <code>UserPromptSubmit</code></td></tr>
+        <tr><td>Subagent</td><td><code>SubagentStart</code> → <code>SubagentStop</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <p><strong>Fallgrop:</strong> hooks berättar inte när du svarade på en tillståndsfråga. Ett verktygsanrop som väntat på tillstånd får därför en tid som inkluderar din väntan. De anropen ska särredovisas, annars blir verktygstiderna missvisande (t.ex. en <code>Edit</code> som ser ut att ta en minut).</p>
+  </div>
+
+  <p>Tre sätt att visualisera, som används i olika faser:</p>
+  <div class="grid">
+    <div class="card">
+      <h3>A. DuckDB mot spool-filen <span class="tag ok">Fas 0</span></h3>
+      <p>DuckDB läser JSONL direkt, utan import eller server.</p>
+      <ul class="pros"><li>Inget att bygga, nya frågor tar sekunder</li><li>Bra för att granska riktig data i #6</li></ul>
+      <ul class="cons"><li>Bara tabeller, ingen live-vy</li></ul>
+      <p>Issue <a href="https://github.com/careskar/oden/issues/10">#10</a>.</p>
+    </div>
+    <div class="card">
+      <h3>B. Event explorer i dashboarden <span class="tag ok">Fas 1</span></h3>
+      <p>Egen vy med nyckeltal, tidslinje per session, events över tid, antal per typ, tid per verktyg och en live-ström med rå-JSON.</p>
+      <ul class="pros"><li>Live, och byggd för just de här frågorna</li><li>Blir kärnan i Oden ändå</li></ul>
+      <ul class="cons"><li>Måste byggas</li></ul>
+      <p>Issue <a href="https://github.com/careskar/oden/issues/11">#11</a>. <a href="prototypes/event-explorer.html">Klickbar prototyp</a>.</p>
+    </div>
+    <div class="card">
+      <h3>C. Sessioner som traces <span class="tag info">Fas 3</span></h3>
+      <p>Session = trace, tur = spann, verktygsanrop = underspann. Visas som vattenfall i Jaeger eller Grafana Tempo.</p>
+      <ul class="pros"><li>Färdigt verktyg, inget eget UI</li><li>Standardformat, hänger ihop med OTel-spåret</li></ul>
+      <ul class="cons"><li>Spann syns först när de är klara, så ingen live-vy</li><li>Kräver en Docker-stack</li></ul>
+      <p>Issue <a href="https://github.com/careskar/oden/issues/12">#12</a>.</p>
+    </div>
+  </div>
+
+  <h3>Exempel: DuckDB-frågor</h3>
+  <p>Testade mot påhittad data i Korpens format. Fältet <code>event</code> och <code>session_id</code> finns på toppnivå i kuvertet, resten ligger under <code>raw</code>.</p>
+<pre><code>CREATE VIEW ev AS
+SELECT json-&gt;&gt;'$.event'                      AS event,
+       json-&gt;&gt;'$.session_id'                 AS session_id,
+       (json-&gt;&gt;'$.received_at')::TIMESTAMPTZ AS ts,
+       json-&gt;&gt;'$.raw.tool_name'              AS tool,
+       json-&gt;&gt;'$.raw.tool_use_id'            AS tool_use_id,
+       json                                  AS j
+FROM read_ndjson_objects('/Users/karl/.oden/spool.jsonl');
+
+-- Antal per eventtyp
+SELECT event, count(*) AS n FROM ev GROUP BY 1 ORDER BY n DESC;
+
+-- Tid per verktyg
+SELECT pre.tool, count(*) AS n,
+       median(epoch(post.ts) - epoch(pre.ts))              AS median_s,
+       quantile_cont(epoch(post.ts) - epoch(pre.ts), 0.9)  AS p90_s,
+       count(*) FILTER (WHERE post.event = 'PostToolUseFailure') AS fel
+FROM ev pre
+JOIN ev post ON post.tool_use_id = pre.tool_use_id
+            AND post.event IN ('PostToolUse', 'PostToolUseFailure')
+WHERE pre.event = 'PreToolUse'
+GROUP BY 1 ORDER BY n DESC;
+
+-- Agentens tur och din svarstid
+WITH t AS (
+  SELECT session_id, event, ts,
+         lead(ts)    OVER (PARTITION BY session_id ORDER BY ts) AS next_ts,
+         lead(event) OVER (PARTITION BY session_id ORDER BY ts) AS next_ev
+  FROM ev WHERE event IN ('UserPromptSubmit', 'Stop'))
+SELECT CASE event WHEN 'UserPromptSubmit' THEN 'agentens tur' ELSE 'din svarstid' END AS vad,
+       count(*) AS n, median(epoch(next_ts) - epoch(ts)) AS median_s
+FROM t
+WHERE (event = 'UserPromptSubmit' AND next_ev = 'Stop')
+   OR (event = 'Stop' AND next_ev = 'UserPromptSubmit')
+GROUP BY 1;</code></pre>
+</section>
+
 <section id="harnesses">
-  <h2>10. Stöd för flera harnesses</h2>
+  <h2>11. Stöd för flera harnesses</h2>
   <p>Varje harness får en <em>adapter</em> som mappar dess events till det gemensamma formatet. Statusmaskinen och statistiken bryr sig bara om de normaliserade typerna.</p>
   <div class="table-wrap">
     <table>
@@ -724,7 +808,7 @@ exit 0</code></pre>
 </section>
 
 <section id="integritet">
-  <h2>11. Integritet och säkerhet</h2>
+  <h2>12. Integritet och säkerhet</h2>
   <ul>
     <li><strong>Local-first:</strong> daemonen lyssnar bara på <code>127.0.0.1</code>. Inga prompter lämnar maskinen förrän du själv slår på synk eller hostad ingest.</li>
     <li><strong>Prompttext är opt-in per källa:</strong> lagra bara längd och hash som standard. Hela texten sparas där du uttryckligen slår på det.</li>
@@ -735,7 +819,7 @@ exit 0</code></pre>
 </section>
 
 <section id="faser">
-  <h2>12. Faser: PoC → MVP → vidare</h2>
+  <h2>13. Faser: PoC → MVP → vidare</h2>
 
   <div class="phase">
     <h3>Fas 0 – Proof of concept</h3>
@@ -747,6 +831,7 @@ exit 0</code></pre>
       <li>Skript som läser transkript och räknar ut kontextfyllnad och tokens per tur</li>
       <li>Testa Cowork: laddas hooks/plugins? Var ligger sessionsdata?</li>
       <li>Mät korpens latens. Mål under 50 ms per event</li>
+      <li>DuckDB-frågor för att granska spool-filen: antal per typ, tid per verktyg, turlängd och svarstid (#10)</li>
     </ul>
     <p><strong>Klart när:</strong> <code>oden ls</code> visar korrekt status för 3+ parallella Claude Code-sessioner, och vi vet hur Cowork ska kopplas in.</p>
   </div>
@@ -759,6 +844,7 @@ exit 0</code></pre>
       <li>Byt till HTTP-hooks där det går, behåll spool-reserven och ladda upp spool vid omstart</li>
       <li>Berikare för transkript: modell, tokens, kontext-%</li>
       <li>Dashboard: live-lista, ”väntar på dig”-inkorg, sessionsdetalj med tidslinje</li>
+      <li>Event explorer: nyckeltal, tidslinje per session, events över tid, tid per verktyg, live-ström med rå-JSON (#11)</li>
       <li>Promptarkiv med fritextsök</li>
       <li>Desktop-notis när en session väntat på tillstånd längre än X sekunder</li>
       <li>Paketera som Claude Code-plugin: installation med ett kommando</li>
@@ -787,6 +873,7 @@ exit 0</code></pre>
       <li>Korrelera OTel-data med hook-sessioner via session-id</li>
       <li>Kostnad per session, repo och dag, med budgetlarm</li>
       <li>Valfri vidarebefordran till Grafana eller liknande</li>
+      <li>Exportera sessioner som traces till Jaeger eller Grafana Tempo (#12)</li>
     </ul>
   </div>
 
@@ -808,7 +895,7 @@ exit 0</code></pre>
 </section>
 
 <section id="extra">
-  <h2>13. Fler idéer</h2>
+  <h2>14. Fler idéer</h2>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Idé</th><th>Varför</th><th>Insats</th></tr></thead>
@@ -828,7 +915,7 @@ exit 0</code></pre>
 </section>
 
 <section id="fragor">
-  <h2>14. Öppna frågor</h2>
+  <h2>15. Öppna frågor</h2>
   <ol>
     <li>Ska prompttext lagras i klartext som standard, eller bara längd och hash tills du slår på det?</li>
     <li>En maskin eller flera? Det avgör när vi behöver hostad ingest (fas 4 eller tidigare).</li>

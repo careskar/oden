@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oden event explorer</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f6f2;
+    --surface: #fcfcfb;
+    --surface-2: #efede6;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #7a7872;
+    --border: #dedad0;
+    --grid: #ebe8e0;
+    --accent: #2a78d6;
+    --wait-human: #c9c6bc;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #6250d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #121211;
+      --surface: #1a1a19;
+      --surface-2: #242422;
+      --text: #f0efec;
+      --text-2: #c3c2b7;
+      --muted: #8e8c84;
+      --border: #34332f;
+      --grid: #2a2a27;
+      --accent: #3987e5;
+      --wait-human: #4a4944;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --surface-2: #242422;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #8e8c84;
+    --border: #34332f;
+    --grid: #2a2a27;
+    --accent: #3987e5;
+    --wait-human: #4a4944;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 24px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: var(--text-2); margin: 4px 0 0; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
+
+  .banner { margin: 16px 0; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--surface); color: var(--text-2); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .seg button { border: 0; background: none; color: var(--text-2); padding: 6px 12px; font: inherit; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+  select, .btn { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+  .btn { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .btn[aria-pressed="true"] .dot-live { background: var(--s3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--s3) 25%, transparent); }
+  .clock { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .kpi .label { color: var(--text-2); font-size: 12.5px; }
+  .kpi .value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 2px; }
+  .kpi .hint { color: var(--muted); font-size: 12px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; }
+  .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .chart { width: 100%; overflow-x: auto; }
+  .chart svg { display: block; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 8px; color: var(--text-2); font-size: 12.5px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .sw.ring { background: none !important; border: 2px solid var(--s3); border-radius: 50%; }
+  .sw.round { border-radius: 50%; }
+
+  svg text { fill: var(--text-2); font: 11.5px ui-sans-serif, system-ui, sans-serif; }
+  svg text.strong { fill: var(--text); font-weight: 600; }
+  svg text.muted { fill: var(--muted); }
+  svg .gridline { stroke: var(--grid); stroke-width: 1; }
+  svg .axis { stroke: var(--border); stroke-width: 1; }
+  svg .nowline { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 3 3; }
+  svg .hit { fill: transparent; }
+
+  .tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgb(0 0 0 / .14); max-width: 320px; display: none; }
+  .tip b { font-weight: 600; }
+  .tip .row { display: flex; gap: 8px; justify-content: space-between; }
+  .tip .k { color: var(--text-2); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .chip { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 999px; padding: 2px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .chip[aria-pressed="true"] { background: var(--surface-2); color: var(--text); border-color: var(--text-2); }
+
+  .stream-wrap { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 860px) { .stream-wrap { grid-template-columns: 1fr; } }
+  .table-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; z-index: 1; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--surface-2); }
+  tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  td.detail { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+  .tt { font-variant-numeric: tabular-nums; color: var(--text-2); }
+  pre.raw { margin: 0; max-height: 420px; overflow: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+
+  .status { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; }
+  details.how { margin-top: 8px; color: var(--text-2); }
+  details.how summary { cursor: pointer; color: var(--text); }
+  details.how li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Oden event explorer</h1>
+    <p class="sub">Prototyp av en vy över inkommande hook-events: antal, typer, tider och tidslinje per session.</p>
+  </header>
+
+  <div class="banner">Prototyp med <strong>påhittade events</strong> i samma format som Korpen skriver till <code>~/.oden/spool.jsonl</code>. Fyra simulerade sessioner. Med <em>Live</em> på dyker nya events upp i takt med klockan.</div>
+
+  <div class="controls" role="toolbar" aria-label="Filter">
+    <div class="seg" id="range" role="group" aria-label="Tidsperiod">
+      <button data-min="15">15 min</button>
+      <button data-min="60" aria-pressed="true">1 timme</button>
+      <button data-min="0">Allt</button>
+    </div>
+    <select id="session" aria-label="Session"></select>
+    <button class="btn" id="live" aria-pressed="true"><span class="dot-live"></span>Live</button>
+    <span class="clock" id="clock"></span>
+  </div>
+
+  <section class="kpis" id="kpis" aria-label="Nyckeltal"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Tidslinje per session</h2>
+      <span class="note">Hovra över ett segment för detaljer</span>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--s1)"></i>Agenten jobbar (tur)</span>
+      <span><i class="sw" style="background:var(--s2)"></i>Väntar på tillstånd</span>
+      <span><i class="sw" style="background:var(--wait-human)"></i>Väntar på dig</span>
+      <span><i class="sw" style="background:var(--s3)"></i>Verktygsanrop</span>
+      <span><i class="sw" style="background:var(--s5)"></i>Subagent</span>
+      <span><i class="sw round" style="background:var(--s6)"></i>Komprimering</span>
+    </div>
+    <div class="chart" id="timeline"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2>Events över tid</h2>
+      <p class="note">Staplade per eventgrupp</p>
+      <div class="legend" id="group-legend"></div>
+      <div class="chart" id="overtime"></div>
+    </section>
+    <section class="panel">
+      <h2>Antal per eventtyp</h2>
+      <p class="note">Färg efter eventgrupp, samma som till vänster</p>
+      <div class="chart" id="bytype"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Tid per verktyg</h2>
+      <span class="note">Logaritmisk skala. En prick per anrop, streck = median</span>
+    </div>
+    <div class="legend">
+      <span><i class="sw round" style="background:var(--s3)"></i>Lyckat anrop</span>
+      <span><i class="sw ring"></i>Misslyckat anrop</span>
+      <span><i class="sw round" style="background:var(--s2)"></i>Inkl. väntan på tillstånd</span>
+    </div>
+    <div class="chart" id="tools"></div>
+    <details class="how">
+      <summary>Så räknas tiderna ut</summary>
+      <p>Hook-events har ingen varaktighet, bara tidpunkter. Tider fås genom att para ihop events:</p>
+      <ul>
+        <li><strong>Verktygsanrop:</strong> <code>PreToolUse</code> → <code>PostToolUse</code>/<code>PostToolUseFailure</code> med samma <code>tool_use_id</code>.</li>
+        <li><strong>Tur:</strong> <code>UserPromptSubmit</code> → <code>Stop</code>.</li>
+        <li><strong>Väntan på tillstånd:</strong> <code>PermissionRequest</code> → nästa <code>PostToolUse</code> i sessionen. Hooks säger inte när du svarade, så anropets tid inkluderar väntan. Därför särredovisas de anropen i orange.</li>
+        <li><strong>Väntar på dig:</strong> <code>Stop</code> → nästa <code>UserPromptSubmit</code>.</li>
+        <li><strong>Subagent:</strong> <code>SubagentStart</code> → <code>SubagentStop</code>.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Event-ström</h2>
+      <span class="note">Senaste först. Klicka på en rad för att se rå-JSON</span>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Filtrera eventgrupp"></div>
+    <div class="stream-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tid</th><th>Session</th><th>Event</th><th>Verktyg</th><th>Detalj</th></tr></thead>
+          <tbody id="stream"></tbody>
+        </table>
+      </div>
+      <pre class="raw" id="raw" aria-live="polite">Välj ett event i listan.</pre>
+    </div>
+  </section>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(() => {
+  // ---------- Event groups and colors ----------
+  const GROUPS = [
+    { key: 'tool',    label: 'Verktyg',         color: 'var(--s3)', events: ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'] },
+    { key: 'prompt',  label: 'Prompt',          color: 'var(--s1)', events: ['UserPromptSubmit'] },
+    { key: 'perm',    label: 'Tillstånd/notis', color: 'var(--s2)', events: ['PermissionRequest', 'Notification'] },
+    { key: 'stop',    label: 'Tur klar',        color: 'var(--s4)', events: ['Stop'] },
+    { key: 'agent',   label: 'Subagent',        color: 'var(--s5)', events: ['SubagentStart', 'SubagentStop'] },
+    { key: 'context', label: 'Kontext',         color: 'var(--s6)', events: ['PreCompact'] },
+    { key: 'session', label: 'Session',         color: 'var(--s7)', events: ['SessionStart', 'SessionEnd'] },
+  ];
+  const GROUP_OF = {};
+  GROUPS.forEach(g => g.events.forEach(e => GROUP_OF[e] = g));
+  const ALL_EVENTS = GROUPS.flatMap(g => g.events);
+
+  // ---------- Fake data in Korpen's envelope format ----------
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const R = rng(4747);
+  const rand = (a, b) => a + R() * (b - a);
+  const pick = arr => arr[Math.floor(R() * arr.length)];
+  const logRand = (a, b) => Math.exp(rand(Math.log(a), Math.log(b)));
+  const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  function ulid(ms) {
+    let s = '', n = ms;
+    for (let i = 0; i < 10; i++) { s = B32[n % 32] + s; n = Math.floor(n / 32); }
+    for (let i = 0; i < 16; i++) s += B32[Math.floor(R() * 32)];
+    return s;
+  }
+  const uuid = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(R() * 16).toString(16));
+
+  const T0 = Date.now();
+  const MIN = 60000;
+  const SESSIONS = [
+    { repo: 'oden',      start: -74, end: null, prompts: ['Implementera statusmaskinen i oden ls', 'Lägg till tester för stale-status', 'Kör testerna igen och fixa felen', 'Snygga till utskriften i --watch'] },
+    { repo: 'oden',      start: -58, end: -22,  prompts: ['Undersök hur Cowork laddar hooks', 'Sammanfatta det du hittat i docs/cowork.md'] },
+    { repo: 'portfolio', start: -41, end: null, prompts: ['Byt till nytt typsnitt på startsidan', 'Varför blir bilderna suddiga på mobilen?', 'Optimera bilderna och kör Lighthouse'] },
+    { repo: 'dotfiles',  start: -13, end: null, prompts: ['Sätt upp ett zsh-alias för oden ls', 'Lägg till det i installationsskriptet också'] },
+  ];
+  const TOOLS = [
+    { name: 'Read',     w: 26, dur: [0.03, 0.4],  fail: 0.01, perm: 0 },
+    { name: 'Grep',     w: 12, dur: [0.08, 1.5],  fail: 0.02, perm: 0 },
+    { name: 'Glob',     w: 6,  dur: [0.03, 0.5],  fail: 0,    perm: 0 },
+    { name: 'Edit',     w: 16, dur: [0.04, 0.3],  fail: 0.04, perm: 0.15 },
+    { name: 'Write',    w: 4,  dur: [0.04, 0.2],  fail: 0.02, perm: 0.3 },
+    { name: 'Bash',     w: 18, dur: [0.4, 70],    fail: 0.14, perm: 0.25 },
+    { name: 'WebFetch', w: 3,  dur: [0.8, 9],     fail: 0.1,  perm: 0.5 },
+    { name: 'Task',     w: 2,  dur: [25, 160],    fail: 0,    perm: 0 },
+  ];
+  const TOOL_W = TOOLS.reduce((a, t) => a + t.w, 0);
+  const pickTool = () => { let x = R() * TOOL_W; for (const t of TOOLS) { if ((x -= t.w) < 0) return t; } return TOOLS[0]; };
+  const toolInput = (tool, repo) => ({
+    Read: { file_path: `/Users/karl/code/${repo}/${pick(['src/index.ts', 'README.md', 'src/state.ts', 'package.json', 'test/state.test.ts'])}` },
+    Grep: { pattern: pick(['waiting_input', 'TODO', 'session_id', 'font-family']), path: `/Users/karl/code/${repo}` },
+    Glob: { pattern: pick(['**/*.ts', 'src/**/*.css', '*.md']) },
+    Edit: { file_path: `/Users/karl/code/${repo}/${pick(['src/state.ts', 'src/cli.ts', 'styles.css'])}`, old_string: '…', new_string: '…' },
+    Write: { file_path: `/Users/karl/code/${repo}/${pick(['docs/cowork.md', 'test/fixtures.jsonl', 'zshrc.d/oden.zsh'])}`, content: '…' },
+    Bash: { command: pick(['npm test', 'git status', 'npx tsc --noEmit', 'ls -la', 'npx lighthouse http://localhost:3000 --quiet', 'git diff --stat']) },
+    WebFetch: { url: pick(['https://code.claude.com/docs/en/hooks', 'https://web.dev/articles/optimize-cls']), prompt: 'Sammanfatta' },
+    Task: { description: pick(['Utforska kodbasen', 'Granska testtäckning']), subagent_type: 'Explore' },
+  })[tool];
+
+  function generate() {
+    const out = [];
+    const horizon = T0 + 45 * MIN;
+    SESSIONS.forEach((s, si) => {
+      const sid = uuid();
+      s.id = sid;
+      const cwd = `/Users/karl/code/${s.repo}`;
+      const base = { session_id: sid, transcript_path: `/Users/karl/.claude/projects/-Users-karl-code-${s.repo}/${sid}.jsonl`, cwd, permission_mode: 'default' };
+      const emit = (t, name, extra = {}) => out.push({
+        v: 1, id: ulid(Math.floor(t)), received_at: new Date(t).toISOString(), harness: 'claude-code', host: 'macbook-karl',
+        event: name, session_id: sid, raw: Object.assign({}, base, { hook_event_name: name }, extra), _t: t, _s: si,
+      });
+      let t = T0 + s.start * MIN;
+      const endAt = s.end == null ? horizon : T0 + s.end * MIN;
+      emit(t, 'SessionStart', { source: 'startup' });
+      t += rand(3, 25) * 1000;
+      let p = 0, turnsSinceCompact = 0;
+      while (t < endAt) {
+        const prompt = s.prompts[p % s.prompts.length] + (p >= s.prompts.length ? ' (igen)' : '');
+        p++;
+        emit(t, 'UserPromptSubmit', { prompt });
+        t += rand(1.5, 6) * 1000;
+        const nTools = Math.floor(rand(2, 14));
+        for (let k = 0; k < nTools && t < endAt; k++) {
+          const tool = pickTool();
+          const id = 'toolu_' + ulid(Math.floor(t)).slice(10, 26).toLowerCase();
+          const input = toolInput(tool.name, s.repo);
+          emit(t, 'PreToolUse', { tool_name: tool.name, tool_input: input, tool_use_id: id });
+          let dt = logRand(tool.dur[0], tool.dur[1]) * 1000;
+          if (R() < tool.perm) {
+            emit(t + 40, 'PermissionRequest', { tool_name: tool.name, tool_input: input });
+            const wait = logRand(3, 140) * 1000;
+            if (wait > 6000) emit(t + 6000, 'Notification', { message: `Claude needs your permission to use ${tool.name}`, notification_type: 'permission_prompt' });
+            dt += wait;
+          }
+          if (tool.name === 'Task') {
+            const aid = 'agent_' + ulid(Math.floor(t)).slice(14, 22).toLowerCase();
+            emit(t + 150, 'SubagentStart', { agent_id: aid, agent_type: 'Explore' });
+            emit(t + dt - 200, 'SubagentStop', { agent_id: aid, agent_type: 'Explore', stop_hook_active: false });
+          }
+          const failed = R() < tool.fail;
+          emit(t + dt, failed ? 'PostToolUseFailure' : 'PostToolUse', failed
+            ? { tool_name: tool.name, tool_input: input, tool_use_id: id, error: pick(['Exit code 1', 'File has been modified since read', 'Request timed out']) }
+            : { tool_name: tool.name, tool_input: input, tool_use_id: id, tool_response: { ok: true } });
+          t += dt + rand(0.8, 9) * 1000;
+        }
+        if (t >= endAt) break;
+        emit(t, 'Stop', { stop_hook_active: false });
+        turnsSinceCompact++;
+        if (turnsSinceCompact >= 3 && R() < 0.35) {
+          emit(t + 1500, 'PreCompact', { trigger: 'auto', custom_instructions: '' });
+          emit(t + 21000, 'SessionStart', { source: 'compact' });
+          turnsSinceCompact = 0;
+        }
+        const humanWait = logRand(15, 420) * 1000;
+        if (humanWait > 60000) emit(t + 60000, 'Notification', { message: 'Claude is waiting for your input', notification_type: 'idle_prompt' });
+        t += humanWait;
+      }
+      if (s.end != null) emit(endAt, 'SessionEnd', { reason: 'prompt_input_exit' });
+    });
+    out.sort((a, b) => a._t - b._t);
+    return out;
+  }
+  const EVENTS = generate();
+  const SHORT = {};
+  SESSIONS.forEach(s => SHORT[s.id] = `${s.repo} · ${s.id.slice(0, 4)}`);
+
+  // ---------- State ----------
+  const state = { rangeMin: 60, session: 'all', live: true, frozenAt: Date.now(), groups: new Set(GROUPS.map(g => g.key)), selected: null };
+  const nowMs = () => state.live ? Date.now() : state.frozenAt;
+
+  // ---------- Derivation: pair events into intervals ----------
+  function derive(now) {
+    const vis = EVENTS.filter(e => e._t <= now && (state.session === 'all' || e.session_id === state.session));
+    const per = {};
+    const tools = [], turns = [], waitsHuman = [], waitsPerm = [], agents = [], compacts = [];
+    const openTool = {}, openAgent = {};
+    vis.forEach(e => {
+      const s = per[e.session_id] || (per[e.session_id] = { id: e.session_id, si: e._s, first: e._t, last: e._t, status: 'started', turn: null, stopAt: null, perm: null, tool: null });
+      s.last = e._t;
+      const r = e.raw;
+      switch (e.event) {
+        case 'UserPromptSubmit':
+          if (s.stopAt != null) { waitsHuman.push({ sid: s.id, start: s.stopAt, end: e._t }); s.stopAt = null; }
+          s.turn = { sid: s.id, start: e._t, prompt: r.prompt, tools: 0 };
+          s.status = 'working';
+          break;
+        case 'PreToolUse':
+          openTool[r.tool_use_id] = { sid: s.id, tool: r.tool_name, start: e._t, perm: false, input: r.tool_input };
+          s.tool = r.tool_name;
+          if (s.turn) s.turn.tools++;
+          break;
+        case 'PermissionRequest':
+          s.perm = { sid: s.id, start: e._t, tool: r.tool_name };
+          Object.values(openTool).forEach(o => { if (o.sid === s.id) o.perm = true; });
+          s.status = 'waiting_permission';
+          break;
+        case 'PostToolUse':
+        case 'PostToolUseFailure': {
+          const o = openTool[r.tool_use_id];
+          if (o) { tools.push(Object.assign(o, { end: e._t, ok: e.event === 'PostToolUse' })); delete openTool[r.tool_use_id]; }
+          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t })); s.perm = null; }
+          s.status = 'working'; s.tool = null;
+          break;
+        }
+        case 'SubagentStart': openAgent[r.agent_id] = { sid: s.id, start: e._t, type: r.agent_type }; break;
+        case 'SubagentStop': { const a = openAgent[r.agent_id]; if (a) { agents.push(Object.assign(a, { end: e._t })); delete openAgent[r.agent_id]; } break; }
+        case 'Stop':
+          if (s.turn) { turns.push(Object.assign(s.turn, { end: e._t })); s.turn = null; }
+          s.stopAt = e._t; s.status = 'waiting_input'; s.tool = null;
+          break;
+        case 'PreCompact': compacts.push({ sid: s.id, t: e._t, trigger: r.trigger }); break;
+        case 'SessionEnd':
+          // Close whatever was still open when the session ended.
+          if (s.turn) { turns.push(Object.assign(s.turn, { end: e._t })); s.turn = null; }
+          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t })); s.perm = null; }
+          Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: e._t, ok: false, aborted: true })); delete openTool[k]; } });
+          Object.keys(openAgent).forEach(k => { if (openAgent[k].sid === s.id) { agents.push(Object.assign(openAgent[k], { end: e._t })); delete openAgent[k]; } });
+          s.status = 'ended'; s.stopAt = null;
+          break;
+      }
+    });
+    // Close open intervals at "now" so pågående arbete syns.
+    Object.values(per).forEach(s => {
+      if (s.turn) turns.push(Object.assign(s.turn, { end: now, open: true }));
+      if (s.stopAt != null && s.status !== 'ended') waitsHuman.push({ sid: s.id, start: s.stopAt, end: now, open: true });
+      if (s.perm) waitsPerm.push(Object.assign(s.perm, { end: now, open: true }));
+      if (s.status !== 'ended' && now - s.last > 15 * MIN) s.status = 'stale';
+    });
+    Object.values(openTool).forEach(o => tools.push(Object.assign(o, { end: now, open: true })));
+    Object.values(openAgent).forEach(a => agents.push(Object.assign(a, { end: now, open: true })));
+    return { vis, per, tools, turns, waitsHuman, waitsPerm, agents, compacts };
+  }
+
+  // ---------- Helpers ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs = {}, parent) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  const hhmm = t => new Date(t).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  const hhmmss = t => new Date(t).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  function fmtDur(ms) {
+    if (ms < 1000) return `${Math.round(ms)} ms`;
+    const s = ms / 1000;
+    if (s < 60) return `${s < 10 ? s.toFixed(1) : Math.round(s)} s`;
+    const m = Math.floor(s / 60), r = Math.round(s % 60);
+    return m < 60 ? `${m} min ${r ? r + ' s' : ''}`.trim() : `${Math.floor(m / 60)} h ${m % 60} min`;
+  }
+  const quant = (arr, q) => { if (!arr.length) return NaN; const a = [...arr].sort((x, y) => x - y); const i = (a.length - 1) * q, lo = Math.floor(i); return a[lo] + (a[Math.ceil(i)] - a[lo]) * (i - lo); };
+  const STATUS = {
+    working: { label: 'Jobbar', icon: '▶' },
+    waiting_permission: { label: 'Väntar på tillstånd', icon: '⏸' },
+    waiting_input: { label: 'Väntar på dig', icon: '●' },
+    ended: { label: 'Avslutad', icon: '■' },
+    stale: { label: 'Inaktiv', icon: '○' },
+    started: { label: 'Startad', icon: '▷' },
+  };
+
+  const tip = document.getElementById('tip');
+  function showTip(evt, html) {
+    tip.innerHTML = html; tip.style.display = 'block';
+    const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = evt.clientX + pad, y = evt.clientY + pad;
+    if (x + w > innerWidth - 8) x = evt.clientX - w - pad;
+    if (y + h > innerHeight - 8) y = evt.clientY - h - pad;
+    tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+  }
+  const hideTip = () => tip.style.display = 'none';
+  function bindTip(node, html) {
+    node.addEventListener('mousemove', e => showTip(e, typeof html === 'function' ? html() : html));
+    node.addEventListener('mouseleave', hideTip);
+  }
+  const row = (k, v) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  function timeAxis(svg, x, from, to, y0, y1, left) {
+    const span = to - from;
+    const step = [MIN, 2 * MIN, 5 * MIN, 10 * MIN, 15 * MIN, 30 * MIN, 60 * MIN].find(s => span / s <= 8) || 60 * MIN;
+    for (let t = Math.ceil(from / step) * step; t <= to; t += step) {
+      const px = x(t);
+      if (px < left + 10) continue;
+      el('line', { x1: px, x2: px, y1: y0, y2: y1, class: 'gridline' }, svg);
+      el('text', { x: px, y: y1 + 14, 'text-anchor': 'middle' }, svg).textContent = hhmm(t);
+    }
+  }
+
+  // ---------- Renderers ----------
+  function renderKpis(d, from, now) {
+    const inR = e => e._t >= from;
+    const events = d.vis.filter(inR);
+    const tools = d.tools.filter(t => t.start >= from && !t.open && !t.aborted);
+    const plain = tools.filter(t => !t.perm).map(t => t.end - t.start);
+    const turns = d.turns.filter(t => t.start >= from && !t.open).map(t => t.end - t.start);
+    const human = d.waitsHuman.filter(w => w.start >= from && !w.open).map(w => w.end - w.start);
+    const perms = d.waitsPerm.filter(w => w.start >= from).length;
+    const live = Object.values(d.per).filter(s => s.status !== 'ended' && s.status !== 'stale');
+    const waiting = live.filter(s => s.status.startsWith('waiting'));
+    const fails = tools.filter(t => !t.ok).length;
+    const k = [
+      ['Events', events.length.toLocaleString('sv-SE'), `${(events.length / Math.max(1, (now - from) / MIN)).toFixed(1)} per minut`],
+      ['Aktiva sessioner', live.length, `${waiting.length} väntar på dig nu`],
+      ['Turer', turns.length, turns.length ? `median ${fmtDur(quant(turns, .5))}` : '–'],
+      ['Verktygsanrop', tools.length, tools.length ? `${Math.round(100 * fails / tools.length)} % misslyckade` : '–'],
+      ['Verktygstid (median)', plain.length ? fmtDur(quant(plain, .5)) : '–', plain.length ? `p90 ${fmtDur(quant(plain, .9))}` : ''],
+      ['Din svarstid (median)', human.length ? fmtDur(quant(human, .5)) : '–', `${perms} tillståndsfrågor`],
+    ];
+    document.getElementById('kpis').innerHTML = k.map(([l, v, h]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div><div class="hint">${h}</div></div>`).join('');
+  }
+
+  function renderTimeline(d, from, now) {
+    const host = document.getElementById('timeline');
+    host.innerHTML = '';
+    const sessions = Object.values(d.per).filter(s => s.last >= from || s.status !== 'ended').sort((a, b) => a.first - b.first);
+    const W = Math.max(640, host.clientWidth), left = 190, right = 16, rowH = 46, top = 6;
+    const H = top + sessions.length * rowH + 24;
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Tidslinje per session' }, host);
+    if (!sessions.length) { el('text', { x: 10, y: 20 }, svg).textContent = 'Inga sessioner i perioden.'; return; }
+    const x = t => left + (Math.max(from, Math.min(now, t)) - from) / (now - from) * (W - left - right);
+    timeAxis(svg, x, from, now, top, H - 24, left);
+    sessions.forEach((s, i) => {
+      const y = top + i * rowH;
+      const st = STATUS[s.status];
+      el('text', { x: 4, y: y + 17, class: 'strong' }, svg).textContent = SHORT[s.id];
+      el('text', { x: 4, y: y + 33 }, svg).textContent = `${st.icon} ${st.label}${s.status === 'working' && s.tool ? ' · ' + s.tool : ''}`;
+      el('line', { x1: left, x2: W - right, y1: y + rowH - 4, y2: y + rowH - 4, class: 'gridline' }, svg);
+      const seg = (a, b, yy, h, color, html, extra = {}) => {
+        if (b < from || a > now) return;
+        const x0 = x(a), w = Math.max(2, x(b) - x0);
+        const r = el('rect', Object.assign({ x: x0, y: yy, width: w, height: h, rx: Math.min(3, h / 2), fill: color }, extra), svg);
+        const hit = el('rect', { x: x0 - 2, y: yy - 3, width: w + 4, height: h + 6, class: 'hit' }, svg);
+        bindTip(hit, html);
+        return r;
+      };
+      d.waitsHuman.filter(w => w.sid === s.id).forEach(w => seg(w.start, w.end, y + 6, 14, 'var(--wait-human)',
+        `<b>Väntar på dig</b>${row('Från', hhmmss(w.start))}${row('Tid', fmtDur(w.end - w.start) + (w.open ? ' (pågår)' : ''))}`));
+      d.turns.filter(t => t.sid === s.id).forEach(t => seg(t.start, t.end, y + 6, 14, 'var(--s1)',
+        `<b>Tur</b><div>${esc(t.prompt)}</div>${row('Start', hhmmss(t.start))}${row('Tid', fmtDur(t.end - t.start) + (t.open ? ' (pågår)' : ''))}${row('Verktygsanrop', t.tools)}`));
+      d.waitsPerm.filter(w => w.sid === s.id).forEach(w => seg(w.start, w.end, y + 6, 14, 'var(--s2)',
+        `<b>Väntar på tillstånd</b>${row('Verktyg', w.tool)}${row('Tid', fmtDur(w.end - w.start) + (w.open ? ' (pågår)' : ''))}`));
+      d.tools.filter(t => t.sid === s.id).forEach(t => seg(t.start, t.end, y + 24, 6, 'var(--s3)',
+        `<b>${t.tool}</b>${row('Tid', fmtDur(t.end - t.start) + (t.open ? ' (pågår)' : ''))}${row('Resultat', t.open ? '–' : t.ok ? 'OK' : 'Fel')}${t.perm ? row('Tillstånd', 'frågade') : ''}`));
+      d.agents.filter(a => a.sid === s.id).forEach(a => seg(a.start, a.end, y + 32, 6, 'var(--s5)',
+        `<b>Subagent</b>${row('Typ', a.type)}${row('Tid', fmtDur(a.end - a.start) + (a.open ? ' (pågår)' : ''))}`));
+      d.compacts.filter(c => c.sid === s.id && c.t >= from).forEach(c => {
+        const cx = x(c.t);
+        el('circle', { cx, cy: y + 13, r: 5, fill: 'var(--s6)', stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+        const hit = el('circle', { cx, cy: y + 13, r: 10, class: 'hit' }, svg);
+        bindTip(hit, `<b>Komprimering</b>${row('Tid', hhmmss(c.t))}${row('Trigger', c.trigger)}`);
+      });
+    });
+    el('line', { x1: x(now), x2: x(now), y1: top, y2: H - 24, class: 'nowline' }, svg);
+  }
+
+  function renderOverTime(d, from, now) {
+    const host = document.getElementById('overtime');
+    host.innerHTML = '';
+    const W = Math.max(320, host.clientWidth), H = 220, left = 34, right = 8, top = 8, bottom = 24;
+    const span = now - from;
+    const bucket = span <= 20 * MIN ? 30000 : span <= 70 * MIN ? 2 * MIN : 5 * MIN;
+    const start = Math.floor(from / bucket) * bucket;
+    const n = Math.ceil((now - start) / bucket);
+    const counts = Array.from({ length: n }, () => Object.fromEntries(GROUPS.map(g => [g.key, 0])));
+    d.vis.forEach(e => { if (e._t >= start) { const i = Math.floor((e._t - start) / bucket); if (counts[i]) counts[i][GROUP_OF[e.event].key]++; } });
+    const totals = counts.map(c => GROUPS.reduce((a, g) => a + c[g.key], 0));
+    const max = Math.max(4, ...totals);
+    const niceMax = Math.ceil(max / 5) * 5;
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Events över tid' }, host);
+    const y = v => top + (1 - v / niceMax) * (H - top - bottom);
+    for (let v = 0; v <= niceMax; v += niceMax / 5) {
+      el('line', { x1: left, x2: W - right, y1: y(v), y2: y(v), class: v ? 'gridline' : 'axis' }, svg);
+      el('text', { x: left - 6, y: y(v) + 4, 'text-anchor': 'end' }, svg).textContent = v;
+    }
+    const x = t => left + (t - start) / (now - start) * (W - left - right);
+    timeAxis(svg, x, start, now, H - bottom, H - bottom, left);
+    const bw = Math.max(2, (W - left - right) / n - 2);
+    counts.forEach((c, i) => {
+      let acc = 0;
+      const x0 = x(start + i * bucket) + 1;
+      const parts = GROUPS.filter(g => c[g.key] > 0);
+      parts.forEach((g, j) => {
+        const y1 = y(acc), y2 = y(acc + c[g.key]);
+        const isTop = j === parts.length - 1;
+        const h = Math.max(0, y1 - y2 - (isTop ? 0 : 2));
+        if (isTop && h > 4) {
+          // Rounded top only: path with 3px radius on the upper corners.
+          const r = 3, xx = x0, yy = y2, w = bw;
+          el('path', { d: `M${xx},${yy + h} V${yy + r} Q${xx},${yy} ${xx + r},${yy} H${xx + w - r} Q${xx + w},${yy} ${xx + w},${yy + r} V${yy + h} Z`, fill: g.color }, svg);
+        } else {
+          el('rect', { x: x0, y: y2, width: bw, height: h, fill: g.color }, svg);
+        }
+        acc += c[g.key];
+      });
+      const hit = el('rect', { x: x0 - 1, y: top, width: bw + 2, height: H - top - bottom, class: 'hit' }, svg);
+      bindTip(hit, () => `<b>${hhmm(start + i * bucket)}–${hhmm(start + (i + 1) * bucket)}</b>` +
+        GROUPS.filter(g => c[g.key]).map(g => row(`<i class="sw" style="background:${g.color}"></i> ${g.label}`, c[g.key])).join('') + row('<b>Totalt</b>', `<b>${totals[i]}</b>`));
+    });
+  }
+
+  function renderByType(d, from) {
+    const host = document.getElementById('bytype');
+    host.innerHTML = '';
+    const counts = Object.fromEntries(ALL_EVENTS.map(e => [e, 0]));
+    d.vis.forEach(e => { if (e._t >= from) counts[e.event]++; });
+    const rows = ALL_EVENTS.map(e => [e, counts[e]]).sort((a, b) => b[1] - a[1]);
+    const total = rows.reduce((a, r) => a + r[1], 0) || 1;
+    const W = Math.max(320, host.clientWidth), left = 132, right = 70, rh = 18, gap = 4, top = 4;
+    const H = top + rows.length * (rh + gap);
+    const max = Math.max(1, rows[0][1]);
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Antal per eventtyp' }, host);
+    rows.forEach(([name, n], i) => {
+      const y = top + i * (rh + gap);
+      const w = (W - left - right) * n / max;
+      el('text', { x: left - 8, y: y + 13, 'text-anchor': 'end' }, svg).textContent = name;
+      if (n > 0) {
+        const r = Math.min(4, w / 2);
+        el('path', { d: `M${left},${y} H${left + w - r} Q${left + w},${y} ${left + w},${y + r} V${y + rh - r} Q${left + w},${y + rh} ${left + w - r},${y + rh} H${left} Z`, fill: GROUP_OF[name].color }, svg);
+      }
+      el('text', { x: left + w + 6, y: y + 13, class: 'strong' }, svg).textContent = n;
+      const hit = el('rect', { x: 0, y: y - 1, width: W, height: rh + 2, class: 'hit' }, svg);
+      bindTip(hit, `<b>${name}</b>${row('Grupp', GROUP_OF[name].label)}${row('Antal', n)}${row('Andel', Math.round(100 * n / total) + ' %')}`);
+    });
+  }
+
+  function renderTools(d, from) {
+    const host = document.getElementById('tools');
+    host.innerHTML = '';
+    const calls = d.tools.filter(t => t.start >= from && !t.open && !t.aborted);
+    const by = {};
+    calls.forEach(c => (by[c.tool] = by[c.tool] || []).push(c));
+    const names = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
+    const W = Math.max(640, host.clientWidth), left = 80, right = 210, rh = 34, top = 20, bottom = 24;
+    const H = top + Math.max(1, names.length) * rh + bottom;
+    const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Tid per verktyg' }, host);
+    if (!names.length) { el('text', { x: 10, y: 20 }, svg).textContent = 'Inga avslutade verktygsanrop i perioden.'; return; }
+    const lo = Math.log10(10), hi = Math.log10(600000);
+    const x = ms => left + (Math.log10(Math.max(10, Math.min(600000, ms))) - lo) / (hi - lo) * (W - left - right);
+    [[10, '10 ms'], [100, '100 ms'], [1000, '1 s'], [10000, '10 s'], [60000, '1 min'], [600000, '10 min']].forEach(([v, l]) => {
+      el('line', { x1: x(v), x2: x(v), y1: top, y2: H - bottom, class: 'gridline' }, svg);
+      el('text', { x: x(v), y: H - bottom + 14, 'text-anchor': 'middle' }, svg).textContent = l;
+    });
+    el('text', { x: W - right + 12, y: 12, class: 'muted' }, svg).textContent = 'n · median · p90 (utan väntan)';
+    names.forEach((name, i) => {
+      const y = top + i * rh;
+      const cy = y + rh / 2;
+      el('line', { x1: left, x2: W - right, y1: y + rh, y2: y + rh, class: 'gridline' }, svg);
+      el('text', { x: left - 10, y: cy + 4, 'text-anchor': 'end', class: 'strong' }, svg).textContent = name;
+      const list = by[name];
+      const plain = list.filter(c => !c.perm).map(c => c.end - c.start);
+      list.forEach((c, k) => {
+        const jitter = ((k * 37) % 17 - 8) * 0.9;
+        const dur = c.end - c.start;
+        const cx = x(dur);
+        const color = c.perm ? 'var(--s2)' : 'var(--s3)';
+        el('circle', c.ok
+          ? { cx, cy: cy + jitter, r: 4, fill: color, stroke: 'var(--surface)', 'stroke-width': 1.5 }
+          : { cx, cy: cy + jitter, r: 3.5, fill: 'var(--surface)', stroke: color, 'stroke-width': 2 }, svg);
+        const hit = el('circle', { cx, cy: cy + jitter, r: 8, class: 'hit' }, svg);
+        const inp = c.input && (c.input.command || c.input.file_path || c.input.pattern || c.input.url || c.input.description) || '';
+        bindTip(hit, `<b>${name}</b><div>${esc(inp)}</div>${row('Tid', fmtDur(dur))}${row('Resultat', c.ok ? 'OK' : 'Fel')}${c.perm ? row('Tillstånd', 'inkl. väntan på dig') : ''}${row('Start', hhmmss(c.start))}`);
+      });
+      if (plain.length) {
+        const mx = x(quant(plain, .5));
+        el('line', { x1: mx, x2: mx, y1: cy - 12, y2: cy + 12, stroke: 'var(--text)', 'stroke-width': 2 }, svg);
+      }
+      const fails = list.filter(c => !c.ok).length;
+      el('text', { x: W - right + 12, y: cy + 4 }, svg).textContent =
+        `${list.length} · ${plain.length ? fmtDur(quant(plain, .5)) : '–'} · ${plain.length ? fmtDur(quant(plain, .9)) : '–'}${fails ? ` · ${fails} fel` : ''}`;
+    });
+  }
+
+  function renderChips() {
+    const host = document.getElementById('chips');
+    host.innerHTML = '';
+    GROUPS.forEach(g => {
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.setAttribute('aria-pressed', state.groups.has(g.key));
+      b.innerHTML = `<i class="sw" style="background:${g.color}"></i>${g.label}`;
+      b.onclick = () => { state.groups.has(g.key) ? state.groups.delete(g.key) : state.groups.add(g.key); renderChips(); render(); };
+      host.appendChild(b);
+    });
+    const leg = document.getElementById('group-legend');
+    leg.innerHTML = GROUPS.map(g => `<span><i class="sw" style="background:${g.color}"></i>${g.label}</span>`).join('');
+  }
+
+  function detail(e) {
+    const r = e.raw;
+    switch (e.event) {
+      case 'UserPromptSubmit': return `”${r.prompt}” (${r.prompt.length} tecken)`;
+      case 'PreToolUse': case 'PostToolUse': case 'PermissionRequest': {
+        const i = r.tool_input || {};
+        return i.command || i.file_path || i.pattern || i.url || i.description || '';
+      }
+      case 'PostToolUseFailure': return r.error;
+      case 'Notification': return r.message;
+      case 'SessionStart': return `source: ${r.source}`;
+      case 'SessionEnd': return `reason: ${r.reason}`;
+      case 'PreCompact': return `trigger: ${r.trigger}`;
+      case 'SubagentStart': case 'SubagentStop': return r.agent_type;
+      default: return '';
+    }
+  }
+
+  function renderStream(d, from) {
+    const body = document.getElementById('stream');
+    const list = d.vis.filter(e => e._t >= from && state.groups.has(GROUP_OF[e.event].key)).slice(-300).reverse();
+    body.innerHTML = list.map(e => `<tr data-id="${e.id}" aria-selected="${e.id === state.selected}">
+      <td class="tt">${hhmmss(e._t)}</td><td>${SHORT[e.session_id]}</td>
+      <td><i class="sw" style="background:${GROUP_OF[e.event].color}"></i> ${e.event}</td>
+      <td>${e.raw.tool_name || ''}</td><td class="detail">${esc(detail(e))}</td></tr>`).join('');
+  }
+  document.getElementById('stream').addEventListener('click', ev => {
+    const tr = ev.target.closest('tr');
+    if (!tr) return;
+    state.selected = tr.dataset.id;
+    const e = EVENTS.find(x => x.id === state.selected);
+    const { _t, _s, ...clean } = e;
+    document.getElementById('raw').textContent = JSON.stringify(clean, null, 2);
+    document.querySelectorAll('#stream tr').forEach(r => r.setAttribute('aria-selected', r.dataset.id === state.selected));
+  });
+
+  function renderSessionSelect() {
+    const sel = document.getElementById('session');
+    sel.innerHTML = '<option value="all">Alla sessioner</option>' + SESSIONS.map(s => `<option value="${s.id}">${SHORT[s.id]}</option>`).join('');
+    sel.value = state.session;
+    sel.onchange = () => { state.session = sel.value; render(); };
+  }
+
+  function render() {
+    const now = nowMs();
+    const first = EVENTS[0]._t;
+    const from = state.rangeMin ? now - state.rangeMin * MIN : first - MIN;
+    const d = derive(now);
+    document.getElementById('clock').textContent = (state.live ? 'Live · ' : 'Pausad · ') + hhmmss(now);
+    renderKpis(d, from, now);
+    renderTimeline(d, from, now);
+    renderOverTime(d, from, now);
+    renderByType(d, from);
+    renderTools(d, from);
+    renderStream(d, from);
+  }
+
+  document.querySelectorAll('#range button').forEach(b => b.onclick = () => {
+    state.rangeMin = +b.dataset.min;
+    document.querySelectorAll('#range button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  });
+  document.getElementById('live').onclick = function () {
+    state.live = !state.live;
+    if (!state.live) state.frozenAt = Date.now();
+    this.setAttribute('aria-pressed', state.live);
+    render();
+  };
+  let resizeTimer;
+  addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+  setInterval(() => { if (state.live) render(); }, 2000);
+
+  renderSessionSelect();
+  renderChips();
+  render();
+
+  // Expose fake data for export/testing (e.g. to try DuckDB queries).
+  window.odenEvents = () => EVENTS.filter(e => e._t <= nowMs()).map(({ _t, _s, ...e }) => e);
+})();
+</script>
+</body>
+</html>
