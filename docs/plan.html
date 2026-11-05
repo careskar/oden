@@ -310,22 +310,22 @@
 
 <section id="hooks">
   <h2>4. Hooks att koppla in sig på (Claude Code)</h2>
-  <p>Alla hook-events får gemensamma fält: <code>session_id</code>, <code>transcript_path</code>, <code>cwd</code>, <code>permission_mode</code> och <code>hook_event_name</code>. Därtill kommer event-specifika fält. Listan bygger på dokumentationen i skrivande stund. Nya events tillkommer, så insamlaren ska skicka vidare <em>alla</em> events oförändrade och låta servern avgöra vad som är intressant.</p>
+  <p>Alla hook-events får gemensamma fält: <code>session_id</code>, <code>transcript_path</code>, <code>cwd</code> och <code>hook_event_name</code>, och nästan alla även <code>prompt_id</code>, som är samma för alla events i en tur. <code>permission_mode</code> saknas i <code>SessionStart</code>, <code>SessionEnd</code>, <code>Notification</code>, <code>SubagentStart</code> och <code>PreCompact</code>. Därtill kommer event-specifika fält. Tabellen är kontrollerad mot riktiga sessioner med Claude Code 2.1.318, se <a href="hook-events.md">hook-events.md</a> (issue #6). Nya events tillkommer, så insamlaren ska skicka vidare <em>alla</em> events oförändrade och låta servern avgöra vad som är intressant.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Event</th><th>När</th><th>Intressant data</th><th>Används till</th></tr></thead>
       <tbody>
-        <tr><td><code>SessionStart</code></td><td>Ny, återupptagen eller rensad session, eller efter komprimering</td><td><code>source</code> (startup/resume/clear/compact), cwd</td><td>Skapa sessionen, koppla till repo/branch, räkna komprimeringar</td></tr>
-        <tr><td><code>UserPromptSubmit</code></td><td>Du skickar en prompt</td><td><code>prompt</code></td><td>Tur börjar → <em>working</em>. Promptlängd, promptarkiv, svarstid från förra <code>Stop</code></td></tr>
+        <tr><td><code>SessionStart</code></td><td>Ny, återupptagen eller rensad session, eller efter komprimering</td><td><code>source</code> (startup/resume/clear/compact), cwd. Vid resume även <code>context_tokens</code></td><td>Skapa sessionen, koppla till repo/branch, räkna komprimeringar</td></tr>
+        <tr><td><code>UserPromptSubmit</code></td><td>Du skickar en prompt</td><td><code>prompt</code></td><td>Tur börjar → <em>working</em>. Promptlängd, promptarkiv, svarstid från förra <code>Stop</code>. Kommer även när ett bakgrundsjobb blir klart (<code>&lt;task-notification&gt;</code>), men aldrig för slash-kommandon</td></tr>
         <tr><td><code>PreToolUse</code></td><td>Innan ett verktyg körs</td><td><code>tool_name</code>, <code>tool_input</code></td><td>”Kör nu: Bash <code>npm test</code>”, verktygsstatistik</td></tr>
-        <tr><td><code>PermissionRequest</code></td><td>Agenten ber om tillstånd</td><td>verktyg och indata</td><td>→ <em>waiting_permission</em>, notis, räkna manuella ingrepp</td></tr>
-        <tr><td><code>PostToolUse</code></td><td>Verktyget lyckades</td><td><code>tool_response</code></td><td>Verktygets körtid (från Pre till Post), tillbaka till <em>working</em></td></tr>
-        <tr><td><code>PostToolUseFailure</code></td><td>Verktyget misslyckades</td><td>felinfo</td><td>Felfrekvens per verktyg</td></tr>
+        <tr><td><code>PermissionRequest</code></td><td>Agenten ber om tillstånd</td><td>verktyg och indata, men inget <code>tool_use_id</code></td><td>→ <em>waiting_permission</em>, notis, räkna manuella ingrepp</td></tr>
+        <tr><td><code>PostToolUse</code></td><td>Verktyget lyckades</td><td><code>tool_response</code>, <code>duration_ms</code></td><td>Verktygets körtid (<code>duration_ms</code>, utan väntan på tillstånd), tillbaka till <em>working</em></td></tr>
+        <tr><td><code>PostToolUseFailure</code></td><td>Verktyget misslyckades</td><td><code>error</code>, <code>is_interrupt</code></td><td>Felfrekvens per verktyg</td></tr>
         <tr><td><code>Notification</code></td><td>Claude Code visar en notis</td><td><code>message</code>, notistyp (t.ex. permission_prompt, idle_prompt)</td><td>Reservsignal för väntelägen</td></tr>
-        <tr><td><code>SubagentStart</code> / <code>SubagentStop</code></td><td>En subagent startar eller blir klar</td><td>agent-id, agenttyp</td><td>Träd av agenter per session, parallellitet</td></tr>
-        <tr><td><code>Stop</code></td><td>Agenten är klar med sin tur</td><td><code>stop_hook_active</code></td><td>Tur slutar → <em>waiting_input</em>. Turens längd. Läs transkriptet för tokens och modell</td></tr>
+        <tr><td><code>SubagentStart</code> / <code>SubagentStop</code></td><td>En subagent startar eller blir klar</td><td><code>agent_id</code>, <code>agent_type</code>. Interna agenter ger <code>SubagentStop</code> med tom typ och utan start</td><td>Träd av agenter per session, parallellitet</td></tr>
+        <tr><td><code>Stop</code></td><td>Agenten är klar med sin tur</td><td><code>stop_hook_active</code>, <code>last_assistant_message</code>, <code>background_tasks</code></td><td>Tur slutar → <em>waiting_input</em>. Kommer inte om turen avbryts med Esc eller ett nekat tillstånd. Turens längd. Läs transkriptet för tokens och modell</td></tr>
         <tr><td><code>PreCompact</code></td><td>Innan kontexten komprimeras</td><td><code>trigger</code> (manual/auto)</td><td>”Kontexten var full”, fyllnadsgrad vid komprimering</td></tr>
-        <tr><td><code>SessionEnd</code></td><td>Sessionen avslutas</td><td><code>reason</code></td><td>→ <em>ended</em>, total sessionstid</td></tr>
+        <tr><td><code>SessionEnd</code></td><td>Sessionen avslutas</td><td><code>reason</code> (other/clear/prompt_input_exit)</td><td>→ <em>ended</em>, total sessionstid</td></tr>
       </tbody>
     </table>
   </div>
@@ -621,6 +621,7 @@ exit 0</code></pre>
     <li><strong>waiting_permission</strong>: agenten är blockerad tills du svarar. Högst prioritet i inkorgen.</li>
     <li><strong>waiting_input</strong>: turen är klar och agenten väntar på nästa prompt. Tiden här är din ”reaktionstid”.</li>
     <li><strong>stale</strong>: inga events på länge (krasch, stängd terminal utan <code>SessionEnd</code>, eller fastnat).</li>
+    <li><strong>Avbrott syns inte i hooks.</strong> Esc eller ett nekat tillstånd under ett verktyg ger varken <code>PostToolUse</code>, <code>Stop</code> eller <code>idle_prompt</code>. En session som är <em>working</em> utan events i N sekunder kontrolleras därför mot transkriptet (<code>[Request interrupted by user</code>) och går då till <em>waiting_input</em>. Se <a href="hook-events.md">hook-events.md</a>.</li>
   </ul>
 </section>
 
@@ -720,7 +721,7 @@ exit 0</code></pre>
     </table>
   </div>
   <div class="callout warn">
-    <p><strong>Fallgrop:</strong> hooks berättar inte när du svarade på en tillståndsfråga. Ett verktygsanrop som väntat på tillstånd får därför en tid som inkluderar din väntan. De anropen ska särredovisas, annars blir verktygstiderna missvisande (t.ex. en <code>Edit</code> som ser ut att ta en minut).</p>
+    <p><strong>Fallgrop:</strong> tiden från <code>PreToolUse</code> till <code>PostToolUse</code> inkluderar din väntan om verktyget krävde tillstånd, så en <code>Edit</code> kan se ut att ta en minut. Använd i stället <code>duration_ms</code> i <code>PostToolUse</code>, som bara räknar körtiden (bekräftat i #6). Skillnaden mellan de två är din svarstid på tillståndsfrågan.</p>
   </div>
 
   <p>Tre sätt att visualisera, som används i olika faser:</p>

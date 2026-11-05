@@ -53,6 +53,14 @@ En JSON-rad per event:
 - Korpen skriver aldrig till spool-filen utan lås. Om låset fortfarande är upptaget efter `ODEN_LOCK_WAIT` sekunder sparas eventet i en egen fil i `~/.oden/overflow/` och en rad skrivs till `raven.err`. Ingest ska läsa även de filerna.
 - POST:en körs helt frikopplad med 1 s timeout. Om daemonen är nere finns eventet ändå i spool-filen.
 
+## Anonymisera en logg
+
+```bash
+./raven/anonymize.sh --map "$HOME/code=/home/dev/code" < ~/.oden/spool.jsonl > logg.jsonl
+```
+
+Byter ut sökvägar (även Claude Codes kodade form, t.ex. `-Users-karl-code`) och `$HOME`, sätter `host` till `devbox` och kortar strängar över 400 tecken. Prompter och verktygsutdata finns kvar, så läs filen innan du delar den. Testdatan i [`testdata/claude-code/`](../testdata/claude-code/) är gjord så.
+
 ## Test och latens
 
 ```bash
@@ -68,4 +76,4 @@ Uppmätt i en Linux-container: medel 20 ms och p95 24 ms med 2 kB payload, medel
 ## Kända begränsningar
 
 - `PostToolUse` innehåller hela verktygssvaret, så spool-filen kan växa snabbt. Ingen trunkering eller rotation ännu.
-- Hook-namn och fält bygger på dokumentationen och verifieras mot riktiga sessioner i #6.
+- Hook-namn och fält är kontrollerade mot riktiga sessioner i #6, se [`docs/hook-events.md`](../docs/hook-events.md). Avbrott (Esc, nekat tillstånd) och krascher syns inte i hooks och måste upptäckas på serversidan.
