@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oden event explorer</title>
+<title>Oden</title>
 <style>
   :root {
     color-scheme: light;
@@ -64,10 +64,8 @@
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 
   kbd { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface-2); }
-  body.dropping main { outline: 3px dashed var(--accent); outline-offset: -8px; border-radius: 12px; }
   .banner.error { border-left-color: var(--s2); }
   .btn:disabled { opacity: .45; cursor: default; }
-  #open-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
   .banner { margin: 16px 0; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--surface); color: var(--text-2); }
 
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
@@ -139,21 +137,20 @@
 <body>
 <main>
   <header>
-    <h1>Oden event explorer</h1>
-    <p class="sub">Vy över hook-events från Korpen: antal, typer, tider och tidslinje per session.</p>
+    <h1>Oden</h1>
+    <p class="sub">Live-vy över dina agent-sessioner: vad de gör just nu och var tiden går.</p>
   </header>
 
-  <div class="banner" id="banner" aria-live="polite">Ingen data inläst. Klicka på <em>Öppna spool-fil</em> eller dra in <code>~/.oden/spool.jsonl</code> här. Ta gärna med filerna i <code>~/.oden/overflow/</code> också. Filerna läses bara här i webbläsaren och skickas ingenstans. Tips: i macOS filväljare visar <kbd>⌘</kbd><kbd>⇧</kbd><kbd>.</kbd> dolda mappar som <code>.oden</code>.</div>
+  <div class="banner" id="banner" aria-live="polite">Ansluter till Oden-daemonen…</div>
 
   <div class="controls" role="toolbar" aria-label="Filter">
     <div class="seg" id="range" role="group" aria-label="Tidsperiod">
       <button data-min="15">15 min</button>
       <button data-min="60">1 timme</button>
-      <button data-min="1440">24 h</button>
-      <button data-min="0" aria-pressed="true">Allt</button>
+      <button data-min="1440" aria-pressed="true">24 h</button>
+      <button data-min="0">Allt</button>
     </div>
     <select id="session" aria-label="Session"></select>
-    <label class="btn" id="open-label">Öppna spool-fil…<input type="file" id="file" accept=".jsonl,.json,.txt,application/json" multiple hidden></label>
     <span class="clock" id="clock"></span>
   </div>
 
@@ -257,111 +254,16 @@
 
   const MIN = 60000;
 
-  // Filled by loadFiles() when a spool file is opened.
-  let EVENTS = [];
+  // Everything below comes derived from the daemon (/api/view). The status
+  // machine and the pairing into intervals live in oden/src/derive.ts.
+  let D = null;
   let SHORT = {};
   let SESSION_LIST = [];
 
   // ---------- State ----------
-  // "Now" is the last event in the file: ranges count back from there.
-  const state = { rangeMin: 0, session: 'all', endAt: 0, groups: new Set(GROUPS.map(g => g.key)), selected: null };
-  const nowMs = () => state.endAt;
+  const state = { rangeMin: 1440, session: 'all', groups: new Set(GROUPS.map(g => g.key)), selected: null };
 
   // ---------- Derivation: pair events into intervals ----------
-  function derive(now) {
-    const vis = EVENTS.filter(e => e._t <= now && (state.session === 'all' || e.session_id === state.session));
-    const per = {};
-    const tools = [], turns = [], waitsHuman = [], waitsPerm = [], agents = [], compacts = [];
-    const openTool = {}, openAgent = {};
-    // Close what is still open in a session. Claude Code sends no Stop and no
-    // Post when a turn is interrupted (Esc) or a permission is denied, see
-    // docs/hook-events.md, so these intervals are closed by the next event.
-    const closeOpen = (s, t, interrupted) => {
-      if (s.turn) { turns.push(Object.assign(s.turn, { end: t, interrupted })); s.turn = null; }
-      if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: t, denied: true })); s.perm = null; }
-      Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: t, ok: false, aborted: true })); delete openTool[k]; } });
-    };
-    vis.forEach(e => {
-      const s = per[e.session_id] || (per[e.session_id] = { id: e.session_id, first: e._t, last: e._t, status: 'started', turn: null, stopAt: null, perm: null, tool: null });
-      const prev = s.last;
-      s.last = e._t;
-      const r = e.raw || {};
-      switch (e.event) {
-        case 'SessionStart':
-          // --resume and --continue reopen a session that has ended.
-          if (s.status === 'ended') s.status = 'started';
-          break;
-        case 'UserPromptSubmit': {
-          // A finished background job starts a turn too, but it is not your prompt.
-          const auto = typeof r.prompt === 'string' && r.prompt.startsWith('<task-notification>');
-          if (s.turn) closeOpen(s, prev, true);
-          if (s.stopAt != null) { if (!auto) waitsHuman.push({ sid: s.id, start: s.stopAt, end: e._t }); s.stopAt = null; }
-          s.turn = { sid: s.id, start: e._t, prompt: auto ? 'Bakgrundsjobb klart' : (r.prompt || ''), tools: 0, auto };
-          s.status = 'working';
-          break;
-        }
-        case 'PreToolUse':
-          openTool[r.tool_use_id] = { sid: s.id, tool: r.tool_name, start: e._t, perm: false, input: r.tool_input, agent: r.agent_id || null };
-          s.tool = r.tool_name;
-          if (s.turn) s.turn.tools++;
-          s.status = 'working';
-          break;
-        case 'PermissionRequest': {
-          // No tool_use_id here: pair with the latest open call of the same tool and agent.
-          const call = Object.values(openTool).filter(o => o.sid === s.id && o.tool === r.tool_name && o.agent === (r.agent_id || null)).pop();
-          if (call) call.perm = true;
-          s.perm = { sid: s.id, start: e._t, tool: r.tool_name, call };
-          s.status = 'waiting_permission';
-          break;
-        }
-        case 'PostToolUse':
-        case 'PostToolUseFailure': {
-          const o = openTool[r.tool_use_id];
-          const dur = typeof r.duration_ms === 'number' ? r.duration_ms : null;
-          if (o) { tools.push(Object.assign(o, { end: e._t, ok: e.event === 'PostToolUse', dur })); delete openTool[r.tool_use_id]; }
-          if (s.perm && (!s.perm.call || s.perm.call === o)) {
-            // You answered roughly when the tool started running.
-            const answered = dur != null ? Math.max(s.perm.start, e._t - dur) : e._t;
-            waitsPerm.push(Object.assign(s.perm, { end: answered })); s.perm = null;
-          }
-          s.status = 'working'; s.tool = null;
-          break;
-        }
-        case 'SubagentStart': openAgent[r.agent_id] = { sid: s.id, start: e._t, type: r.agent_type }; break;
-        case 'SubagentStop': {
-          // Internal agents send SubagentStop without a start and with an empty type: skip them.
-          const a = openAgent[r.agent_id];
-          if (a) { agents.push(Object.assign(a, { end: e._t })); delete openAgent[r.agent_id]; }
-          break;
-        }
-        case 'Stop':
-          // Calls without a Post at Stop were denied (headless) or interrupted.
-          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t, denied: true })); s.perm = null; }
-          Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: e._t, ok: false, aborted: true })); delete openTool[k]; } });
-          if (s.turn) { turns.push(Object.assign(s.turn, { end: e._t })); s.turn = null; }
-          s.stopAt = e._t; s.status = 'waiting_input'; s.tool = null;
-          break;
-        case 'PreCompact': compacts.push({ sid: s.id, t: e._t, trigger: r.trigger }); break;
-        case 'SessionEnd':
-          closeOpen(s, e._t, false);
-          Object.keys(openAgent).forEach(k => { if (openAgent[k].sid === s.id) { agents.push(Object.assign(openAgent[k], { end: e._t })); delete openAgent[k]; } });
-          s.status = 'ended'; s.stopAt = null; s.tool = null;
-          break;
-      }
-    });
-    // Close open intervals at "now" so that ongoing work shows.
-    Object.values(per).forEach(s => {
-      if (s.turn) turns.push(Object.assign(s.turn, { end: now, open: true }));
-      if (s.stopAt != null && s.status !== 'ended') waitsHuman.push({ sid: s.id, start: s.stopAt, end: now, open: true });
-      if (s.perm) waitsPerm.push(Object.assign(s.perm, { end: now, open: true }));
-      // Also catches turns interrupted during a tool, which send nothing at all.
-      if (s.status !== 'ended' && now - s.last > 15 * MIN) s.status = 'stale';
-    });
-    Object.values(openTool).forEach(o => tools.push(Object.assign(o, { end: now, open: true })));
-    Object.values(openAgent).forEach(a => agents.push(Object.assign(a, { end: now, open: true })));
-    return { vis, per, tools, turns, waitsHuman, waitsPerm, agents, compacts };
-  }
-
   // ---------- Helpers ----------
   const NS = 'http://www.w3.org/2000/svg';
   function el(tag, attrs = {}, parent) {
@@ -598,7 +500,7 @@
           ? { cx, cy: cy + jitter, r: 4, fill: color, stroke: 'var(--surface)', 'stroke-width': 1.5 }
           : { cx, cy: cy + jitter, r: 3.5, fill: 'var(--surface)', stroke: color, 'stroke-width': 2 }, svg);
         const hit = el('circle', { cx, cy: cy + jitter, r: 8, class: 'hit' }, svg);
-        const inp = c.input && (c.input.command || c.input.file_path || c.input.pattern || c.input.url || c.input.description) || '';
+        const inp = c.detail || '';
         bindTip(hit, `<b>${name}</b><div>${esc(inp)}</div>${row('Tid', fmtDur(dur))}${row('Resultat', c.ok ? 'OK' : 'Fel')}${c.perm ? (c.dur != null ? row('Väntan på dig', fmtDur(Math.max(0, wall - dur))) : row('Tillstånd', 'inkl. väntan på dig')) : ''}${row('Start', stamp(c.start))}`);
       });
       if (plain.length) {
@@ -626,39 +528,24 @@
     leg.innerHTML = GROUPS.map(g => `<span><i class="sw" style="background:${g.color}"></i>${g.label}</span>`).join('');
   }
 
-  function detail(e) {
-    const r = e.raw || {};
-    switch (e.event) {
-      case 'UserPromptSubmit': return r.prompt ? `”${r.prompt.slice(0, 200)}” (${r.prompt.length} tecken)` : '';
-      case 'PreToolUse': case 'PostToolUse': case 'PermissionRequest': {
-        const i = r.tool_input || {};
-        return i.command || i.file_path || i.pattern || i.url || i.description || '';
-      }
-      case 'PostToolUseFailure': return r.error;
-      case 'Notification': return r.message;
-      case 'SessionStart': return `source: ${r.source}`;
-      case 'SessionEnd': return `reason: ${r.reason}`;
-      case 'PreCompact': return `trigger: ${r.trigger}`;
-      case 'SubagentStart': case 'SubagentStop': return r.agent_type;
-      default: return '';
-    }
-  }
-
   function renderStream(d, from) {
     const body = document.getElementById('stream');
     const list = d.vis.filter(e => e._t >= from && state.groups.has(grp(e.event).key)).slice(-300).reverse();
     body.innerHTML = list.map(e => `<tr data-id="${e.id}" aria-selected="${e.id === state.selected}">
       <td class="tt">${stamp(e._t)}</td><td>${esc(SHORT[e.session_id] || e.session_id)}</td>
       <td><i class="sw" style="background:${grp(e.event).color}"></i> ${esc(e.event)}</td>
-      <td>${esc((e.raw && e.raw.tool_name) || '')}</td><td class="detail">${esc(detail(e))}</td></tr>`).join('');
+      <td>${esc(e.tool || '')}</td><td class="detail">${esc(e.detail)}</td></tr>`).join('');
   }
   document.getElementById('stream').addEventListener('click', ev => {
     const tr = ev.target.closest('tr');
     if (!tr) return;
     state.selected = tr.dataset.id;
-    const e = EVENTS.find(x => x.id === state.selected);
-    const { _t, _s, ...clean } = e;
-    document.getElementById('raw').textContent = JSON.stringify(clean, null, 2);
+    const raw = document.getElementById('raw');
+    raw.textContent = 'Hämtar…';
+    fetch('/api/events/' + encodeURIComponent(state.selected))
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(e => { if (e.id === state.selected) raw.textContent = JSON.stringify(e, null, 2); })
+      .catch(() => { raw.textContent = 'Kunde inte hämta eventet.'; });
     document.querySelectorAll('#stream tr').forEach(r => r.setAttribute('aria-selected', r.dataset.id === state.selected));
   });
 
@@ -667,16 +554,29 @@
     sel.innerHTML = '<option value="all">Alla sessioner</option>' + SESSION_LIST.map(id => `<option value="${esc(id)}">${esc(SHORT[id] || id)}</option>`).join('');
     sel.value = state.session;
     sel.onchange = () => { state.session = sel.value; render(); };
+    renderSessionSelect.key = SESSION_LIST.join();
+  }
+
+  // The daemon's view in the shape the renderers use, filtered to one session.
+  function derived() {
+    const only = state.session === 'all' ? () => true : x => x.sid === state.session;
+    const per = {};
+    D.sessions.forEach(s => { if (state.session === 'all' || s.id === state.session) per[s.id] = s; });
+    return {
+      per,
+      vis: D.events.filter(only).map(e => ({ ...e, _t: e.t, session_id: e.sid })),
+      tools: D.tools.filter(only), turns: D.turns.filter(only), waitsHuman: D.waitsHuman.filter(only),
+      waitsPerm: D.waitsPerm.filter(only), agents: D.agents.filter(only), compacts: D.compacts.filter(only),
+    };
   }
 
   function render() {
-    if (!EVENTS.length) return;
-    const now = nowMs();
-    const first = EVENTS.length ? EVENTS[0]._t : now - HOUR;
-    const from = state.rangeMin ? now - state.rangeMin * MIN : first - MIN;
+    if (!D || !D.events.length) return;
+    const now = D.now;
+    const from = state.rangeMin ? now - state.rangeMin * MIN : D.events[0].t - MIN;
     multiDay = now - from > 20 * HOUR;
-    const d = derive(now);
-    document.getElementById('clock').textContent = `T.o.m. ${stamp(now)}`;
+    const d = derived();
+    document.getElementById('clock').textContent = `Live · ${stamp(now)}`;
     renderKpis(d, from, now);
     renderTimeline(d, from, now);
     renderOverTime(d, from, now);
@@ -688,78 +588,60 @@
   document.querySelectorAll('#range button').forEach(b => b.onclick = () => {
     state.rangeMin = +b.dataset.min;
     document.querySelectorAll('#range button').forEach(x => x.setAttribute('aria-pressed', x === b));
-    render();
+    refresh();
   });
   let resizeTimer;
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
 
-  // ---------- Load a real spool file ----------
-  // The file is read here in the browser and never sent anywhere.
+  // ---------- Live data from the daemon ----------
   const banner = document.getElementById('banner');
-  async function loadFiles(files) {
-    files = [...files];
-    if (!files.length) return;
-    const parsed = [];
-    let bad = 0;
-    for (const f of files) {
-      const text = await f.text();
-      for (const line of text.split('\n')) {
-        if (!line.trim()) continue;
-        try {
-          const o = JSON.parse(line);
-          if (o && typeof o === 'object' && o.received_at && o.raw) parsed.push(o); else bad++;
-        } catch { bad++; }
-      }
-    }
-    const names = files.map(f => f.name).join(', ');
-    if (!parsed.length) {
+  let loading = false, again = false, lost = false;
+  async function refresh() {
+    if (loading) { again = true; return; }
+    loading = true;
+    try {
+      const from = state.rangeMin ? `?from=${Date.now() - state.rangeMin * MIN}` : '';
+      const r = await fetch('/api/view' + from, { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      D = await r.json();
+      SHORT = {};
+      D.sessions.forEach(s => SHORT[s.id] = `${s.repo || '?'} · ${s.id.slice(0, 4)}`);
+      SESSION_LIST = D.sessions.map(s => s.id);
+      if (state.session !== 'all' && !SESSION_LIST.includes(state.session)) state.session = 'all';
+      if (renderSessionSelect.key !== SESSION_LIST.join()) renderSessionSelect();
+      const has = D.events.length > 0;
+      document.getElementById('dash').hidden = !has;
+      banner.classList.toggle('error', false);
+      banner.innerHTML = has
+        ? `Live från Oden-daemonen · <strong>${D.events.length.toLocaleString('sv-SE')} events</strong> i perioden, ${D.total.toLocaleString('sv-SE')} totalt.`
+        : D.total
+          ? 'Inga events i den valda perioden. Välj <em>Allt</em> för att se äldre.'
+          : 'Inga events än. Installera Korpen med <code>./raven/install.sh</code> och starta om Claude Code, så dyker sessionerna upp här.';
+      if (!has && D.total) document.getElementById('dash').hidden = true;
+      render();
+    } catch (err) {
       banner.classList.add('error');
-      banner.innerHTML = `Hittade inga events i Korpens format i <code>${esc(names)}</code>${bad ? ` (${bad} rader gick inte att läsa)` : ''}. Välj <code>~/.oden/spool.jsonl</code>.`;
-      return;
+      banner.innerHTML = 'Får ingen kontakt med Oden-daemonen. Kör <code>oden serve</code> och ladda om sidan.';
+    } finally {
+      loading = false;
+      if (again) { again = false; refresh(); }
     }
-    const seen = new Set(), evs = [];
-    parsed.forEach((o, i) => {
-      if (o.id && seen.has(o.id)) return;
-      if (o.id) seen.add(o.id); else o.id = 'rad-' + i;
-      o._t = Date.parse(o.received_at);
-      if (isNaN(o._t)) { bad++; return; }
-      o.event = o.event || o.raw.hook_event_name || 'Okänt';
-      o.session_id = o.session_id || o.raw.session_id || 'okänd';
-      evs.push(o);
-    });
-    evs.sort((a, b) => a._t - b._t);
-    const ids = [], repo = {};
-    evs.forEach(e => {
-      if (!(e.session_id in repo)) { ids.push(e.session_id); repo[e.session_id] = null; }
-      if (repo[e.session_id] == null && e.raw.cwd) repo[e.session_id] = String(e.raw.cwd).split('/').filter(Boolean).pop() || '/';
-    });
-    SHORT = {};
-    ids.forEach(id => SHORT[id] = `${repo[id] || '?'} · ${String(id).slice(0, 4)}`);
-    EVENTS = evs; SESSION_LIST = ids;
-    Object.assign(state, { session: 'all', endAt: evs[evs.length - 1]._t + 1000, rangeMin: 0, selected: null });
-    document.querySelectorAll('#range button').forEach(b => b.setAttribute('aria-pressed', b.dataset.min === '0'));
-    document.getElementById('dash').hidden = false;
-    document.getElementById('raw').textContent = 'Välj ett event i listan.';
-    const span = `${dayLabel(evs[0]._t)} ${hhmm(evs[0]._t)} – ${dayLabel(evs[evs.length - 1]._t)} ${hhmm(evs[evs.length - 1]._t)}`;
-    banner.classList.remove('error');
-    banner.innerHTML = `Visar <strong>${evs.length.toLocaleString('sv-SE')} events</strong> i ${ids.length} sessioner från <code>${esc(names)}</code>, ${span}.${bad ? ` ${bad} rader gick inte att läsa och hoppades över.` : ''} Filen lästes bara här i webbläsaren.`;
-    renderSessionSelect();
-    render();
   }
-  document.getElementById('file').addEventListener('change', e => { loadFiles(e.target.files); e.target.value = ''; });
-  let dragDepth = 0;
-  addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dragDepth++; document.body.classList.add('dropping'); } });
-  addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
-  addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dropping'); } });
-  addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dropping'); loadFiles(e.dataTransfer.files); });
+  const es = new EventSource('/api/stream');
+  es.addEventListener('change', () => refresh());
+  es.onerror = () => {
+    lost = true;
+    banner.classList.add('error');
+    banner.innerHTML = 'Tappade kontakten med Oden-daemonen. Försöker igen…';
+  };
+  es.onopen = () => { if (lost) { lost = false; refresh(); } };
+  // Open intervals grow and sessions go stale even without new events.
+  setInterval(() => { if (!document.hidden) refresh(); }, 5000);
 
   renderSessionSelect();
   renderChips();
-  render();
+  refresh();
 
-  // Expose the events for export/testing (e.g. to try DuckDB queries).
-  window.odenEvents = () => EVENTS.filter(e => e._t <= nowMs()).map(({ _t, _s, ...e }) => e);
-  window.odenLoad = loadFiles;
 })();
 </script>
 </body>

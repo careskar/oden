@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Oden: `oden ls` and `oden serve`. Needs Node 22.18 or later (built-in SQLite
+# and TypeScript), no npm packages.
+dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# Follow a symlink, e.g. ~/.local/bin/oden -> <clone>/oden/oden.
+if [ -L "${BASH_SOURCE[0]}" ]; then
+  link="$(readlink "${BASH_SOURCE[0]}")"
+  case "$link" in /*) ;; *) link="$dir/$link" ;; esac
+  dir="$(cd "$(dirname "$link")" && pwd -P)"
+fi
+command -v node >/dev/null || { echo "oden: Node.js saknas (brew install node)" >&2; exit 1; }
+node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22||(a===22&&b>=18)?0:1)' ||
+  { echo "oden: kräver Node 22.18 eller senare, du har $(node --version)" >&2; exit 1; }
+exec node --disable-warning=ExperimentalWarning "$dir/src/cli.ts" "$@"
