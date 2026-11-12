@@ -63,6 +63,11 @@
   .note { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; background: var(--surface-2); padding: 0 4px; border-radius: 4px; }
 
+  kbd { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface-2); }
+  body.dropping main { outline: 3px dashed var(--accent); outline-offset: -8px; border-radius: 12px; }
+  .banner.error { border-left-color: var(--s2); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  #open-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
   .banner { margin: 16px 0; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--surface); color: var(--text-2); }
 
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
@@ -136,19 +141,21 @@
 <main>
   <header>
     <h1>Oden event explorer</h1>
-    <p class="sub">Prototyp av en vy över inkommande hook-events: antal, typer, tider och tidslinje per session.</p>
+    <p class="sub">Vy över hook-events från Korpen: antal, typer, tider och tidslinje per session.</p>
   </header>
 
-  <div class="banner">Prototyp med <strong>påhittade events</strong> i samma format som Korpen skriver till <code>~/.oden/spool.jsonl</code>. Fyra simulerade sessioner. Med <em>Live</em> på dyker nya events upp i takt med klockan.</div>
+  <div class="banner" id="banner" aria-live="polite">Visar <strong>påhittade events</strong> i samma format som Korpen skriver till <code>~/.oden/spool.jsonl</code>. Klicka på <em>Öppna spool-fil</em> eller dra in filen här för att se din egen data. Ta gärna med filerna i <code>~/.oden/overflow/</code> också. Filerna läses bara här i webbläsaren och skickas ingenstans. Tips: i macOS filväljare visar <kbd>⌘</kbd><kbd>⇧</kbd><kbd>.</kbd> dolda mappar som <code>.oden</code>.</div>
 
   <div class="controls" role="toolbar" aria-label="Filter">
     <div class="seg" id="range" role="group" aria-label="Tidsperiod">
       <button data-min="15">15 min</button>
       <button data-min="60" aria-pressed="true">1 timme</button>
+      <button data-min="1440">24 h</button>
       <button data-min="0">Allt</button>
     </div>
     <select id="session" aria-label="Session"></select>
     <button class="btn" id="live" aria-pressed="true"><span class="dot-live"></span>Live</button>
+    <label class="btn" id="open-label">Öppna spool-fil…<input type="file" id="file" accept=".jsonl,.json,.txt,application/json" multiple hidden></label>
     <span class="clock" id="clock"></span>
   </div>
 
@@ -192,18 +199,19 @@
     <div class="legend">
       <span><i class="sw round" style="background:var(--s3)"></i>Lyckat anrop</span>
       <span><i class="sw ring"></i>Misslyckat anrop</span>
-      <span><i class="sw round" style="background:var(--s2)"></i>Inkl. väntan på tillstånd</span>
+      <span><i class="sw round" style="background:var(--s2)"></i>Krävde tillstånd</span>
     </div>
     <div class="chart" id="tools"></div>
     <details class="how">
       <summary>Så räknas tiderna ut</summary>
       <p>Hook-events har ingen varaktighet, bara tidpunkter. Tider fås genom att para ihop events:</p>
       <ul>
-        <li><strong>Verktygsanrop:</strong> <code>PreToolUse</code> → <code>PostToolUse</code>/<code>PostToolUseFailure</code> med samma <code>tool_use_id</code>.</li>
-        <li><strong>Tur:</strong> <code>UserPromptSubmit</code> → <code>Stop</code>.</li>
-        <li><strong>Väntan på tillstånd:</strong> <code>PermissionRequest</code> → nästa <code>PostToolUse</code> i sessionen. Hooks säger inte när du svarade, så anropets tid inkluderar väntan. Därför särredovisas de anropen i orange.</li>
-        <li><strong>Väntar på dig:</strong> <code>Stop</code> → nästa <code>UserPromptSubmit</code>.</li>
-        <li><strong>Subagent:</strong> <code>SubagentStart</code> → <code>SubagentStop</code>.</li>
+        <li><strong>Verktygsanrop:</strong> <code>duration_ms</code> i <code>PostToolUse</code>/<code>PostToolUseFailure</code>, som inte räknar väntan på tillstånd. Saknas det används tiden från <code>PreToolUse</code> med samma <code>tool_use_id</code>. Anrop utan Post (nekade eller avbrutna) räknas inte.</li>
+        <li><strong>Tur:</strong> <code>UserPromptSubmit</code> → <code>Stop</code>. Kommer ett nytt <code>UserPromptSubmit</code> utan <code>Stop</code> emellan avbröts turen (Esc eller nekat tillstånd). Turer som startas av ett klart bakgrundsjobb (<code>&lt;task-notification&gt;</code>) räknas inte som dina prompter.</li>
+        <li><strong>Väntan på tillstånd:</strong> <code>PermissionRequest</code> → det verktygets Post minus <code>duration_ms</code>, alltså ungefär när du svarade. <code>PermissionRequest</code> saknar <code>tool_use_id</code>, så det paras med senaste öppna anropet av samma verktyg.</li>
+        <li><strong>Väntar på dig:</strong> <code>Stop</code> → nästa <code>UserPromptSubmit</code> från dig.</li>
+        <li><strong>Subagent:</strong> <code>SubagentStart</code> → <code>SubagentStop</code>. Interna agenter, som bara skickar <code>SubagentStop</code>, visas inte.</li>
+        <li>Se <a href="../hook-events.md">hook-events.md</a> för vad som gäller för riktiga events.</li>
       </ul>
     </details>
   </section>
@@ -239,8 +247,12 @@
     { key: 'context', label: 'Kontext',         color: 'var(--s6)', events: ['PreCompact'] },
     { key: 'session', label: 'Session',         color: 'var(--s7)', events: ['SessionStart', 'SessionEnd'] },
   ];
+  // Events that Claude Code adds later end up here instead of breaking the view.
+  const OTHER = { key: 'other', label: 'Övrigt', color: 'var(--muted)', events: [] };
+  GROUPS.push(OTHER);
   const GROUP_OF = {};
   GROUPS.forEach(g => g.events.forEach(e => GROUP_OF[e] = g));
+  const grp = name => GROUP_OF[name] || OTHER;
   const ALL_EVENTS = GROUPS.flatMap(g => g.events);
 
   // ---------- Fake data in Korpen's envelope format ----------
@@ -318,6 +330,7 @@
           const input = toolInput(tool.name, s.repo);
           emit(t, 'PreToolUse', { tool_name: tool.name, tool_input: input, tool_use_id: id });
           let dt = logRand(tool.dur[0], tool.dur[1]) * 1000;
+          const run = Math.round(dt);
           if (R() < tool.perm) {
             emit(t + 40, 'PermissionRequest', { tool_name: tool.name, tool_input: input });
             const wait = logRand(3, 140) * 1000;
@@ -331,8 +344,8 @@
           }
           const failed = R() < tool.fail;
           emit(t + dt, failed ? 'PostToolUseFailure' : 'PostToolUse', failed
-            ? { tool_name: tool.name, tool_input: input, tool_use_id: id, error: pick(['Exit code 1', 'File has been modified since read', 'Request timed out']) }
-            : { tool_name: tool.name, tool_input: input, tool_use_id: id, tool_response: { ok: true } });
+            ? { tool_name: tool.name, tool_input: input, tool_use_id: id, error: pick(['Exit code 1', 'File has been modified since read', 'Request timed out']), duration_ms: run }
+            : { tool_name: tool.name, tool_input: input, tool_use_id: id, tool_response: { ok: true }, duration_ms: run });
           t += dt + rand(0.8, 9) * 1000;
         }
         if (t >= endAt) break;
@@ -352,9 +365,11 @@
     out.sort((a, b) => a._t - b._t);
     return out;
   }
-  const EVENTS = generate();
-  const SHORT = {};
+  // Replaced by loadFiles() when a real spool file is opened.
+  let EVENTS = generate();
+  let SHORT = {};
   SESSIONS.forEach(s => SHORT[s.id] = `${s.repo} · ${s.id.slice(0, 4)}`);
+  let SESSION_LIST = SESSIONS.map(s => s.id);
 
   // ---------- State ----------
   const state = { rangeMin: 60, session: 'all', live: true, frozenAt: Date.now(), groups: new Set(GROUPS.map(g => g.key)), selected: null };
@@ -366,56 +381,88 @@
     const per = {};
     const tools = [], turns = [], waitsHuman = [], waitsPerm = [], agents = [], compacts = [];
     const openTool = {}, openAgent = {};
+    // Close what is still open in a session. Claude Code sends no Stop and no
+    // Post when a turn is interrupted (Esc) or a permission is denied, see
+    // docs/hook-events.md, so these intervals are closed by the next event.
+    const closeOpen = (s, t, interrupted) => {
+      if (s.turn) { turns.push(Object.assign(s.turn, { end: t, interrupted })); s.turn = null; }
+      if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: t, denied: true })); s.perm = null; }
+      Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: t, ok: false, aborted: true })); delete openTool[k]; } });
+    };
     vis.forEach(e => {
-      const s = per[e.session_id] || (per[e.session_id] = { id: e.session_id, si: e._s, first: e._t, last: e._t, status: 'started', turn: null, stopAt: null, perm: null, tool: null });
+      const s = per[e.session_id] || (per[e.session_id] = { id: e.session_id, first: e._t, last: e._t, status: 'started', turn: null, stopAt: null, perm: null, tool: null });
+      const prev = s.last;
       s.last = e._t;
-      const r = e.raw;
+      const r = e.raw || {};
       switch (e.event) {
-        case 'UserPromptSubmit':
-          if (s.stopAt != null) { waitsHuman.push({ sid: s.id, start: s.stopAt, end: e._t }); s.stopAt = null; }
-          s.turn = { sid: s.id, start: e._t, prompt: r.prompt, tools: 0 };
+        case 'SessionStart':
+          // --resume and --continue reopen a session that has ended.
+          if (s.status === 'ended') s.status = 'started';
+          break;
+        case 'UserPromptSubmit': {
+          // A finished background job starts a turn too, but it is not your prompt.
+          const auto = typeof r.prompt === 'string' && r.prompt.startsWith('<task-notification>');
+          if (s.turn) closeOpen(s, prev, true);
+          if (s.stopAt != null) { if (!auto) waitsHuman.push({ sid: s.id, start: s.stopAt, end: e._t }); s.stopAt = null; }
+          s.turn = { sid: s.id, start: e._t, prompt: auto ? 'Bakgrundsjobb klart' : (r.prompt || ''), tools: 0, auto };
           s.status = 'working';
           break;
+        }
         case 'PreToolUse':
-          openTool[r.tool_use_id] = { sid: s.id, tool: r.tool_name, start: e._t, perm: false, input: r.tool_input };
+          openTool[r.tool_use_id] = { sid: s.id, tool: r.tool_name, start: e._t, perm: false, input: r.tool_input, agent: r.agent_id || null };
           s.tool = r.tool_name;
           if (s.turn) s.turn.tools++;
+          s.status = 'working';
           break;
-        case 'PermissionRequest':
-          s.perm = { sid: s.id, start: e._t, tool: r.tool_name };
-          Object.values(openTool).forEach(o => { if (o.sid === s.id) o.perm = true; });
+        case 'PermissionRequest': {
+          // No tool_use_id here: pair with the latest open call of the same tool and agent.
+          const call = Object.values(openTool).filter(o => o.sid === s.id && o.tool === r.tool_name && o.agent === (r.agent_id || null)).pop();
+          if (call) call.perm = true;
+          s.perm = { sid: s.id, start: e._t, tool: r.tool_name, call };
           s.status = 'waiting_permission';
           break;
+        }
         case 'PostToolUse':
         case 'PostToolUseFailure': {
           const o = openTool[r.tool_use_id];
-          if (o) { tools.push(Object.assign(o, { end: e._t, ok: e.event === 'PostToolUse' })); delete openTool[r.tool_use_id]; }
-          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t })); s.perm = null; }
+          const dur = typeof r.duration_ms === 'number' ? r.duration_ms : null;
+          if (o) { tools.push(Object.assign(o, { end: e._t, ok: e.event === 'PostToolUse', dur })); delete openTool[r.tool_use_id]; }
+          if (s.perm && (!s.perm.call || s.perm.call === o)) {
+            // You answered roughly when the tool started running.
+            const answered = dur != null ? Math.max(s.perm.start, e._t - dur) : e._t;
+            waitsPerm.push(Object.assign(s.perm, { end: answered })); s.perm = null;
+          }
           s.status = 'working'; s.tool = null;
           break;
         }
         case 'SubagentStart': openAgent[r.agent_id] = { sid: s.id, start: e._t, type: r.agent_type }; break;
-        case 'SubagentStop': { const a = openAgent[r.agent_id]; if (a) { agents.push(Object.assign(a, { end: e._t })); delete openAgent[r.agent_id]; } break; }
+        case 'SubagentStop': {
+          // Internal agents send SubagentStop without a start and with an empty type: skip them.
+          const a = openAgent[r.agent_id];
+          if (a) { agents.push(Object.assign(a, { end: e._t })); delete openAgent[r.agent_id]; }
+          break;
+        }
         case 'Stop':
+          // Calls without a Post at Stop were denied (headless) or interrupted.
+          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t, denied: true })); s.perm = null; }
+          Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: e._t, ok: false, aborted: true })); delete openTool[k]; } });
           if (s.turn) { turns.push(Object.assign(s.turn, { end: e._t })); s.turn = null; }
           s.stopAt = e._t; s.status = 'waiting_input'; s.tool = null;
           break;
         case 'PreCompact': compacts.push({ sid: s.id, t: e._t, trigger: r.trigger }); break;
         case 'SessionEnd':
-          // Close whatever was still open when the session ended.
-          if (s.turn) { turns.push(Object.assign(s.turn, { end: e._t })); s.turn = null; }
-          if (s.perm) { waitsPerm.push(Object.assign(s.perm, { end: e._t })); s.perm = null; }
-          Object.keys(openTool).forEach(k => { if (openTool[k].sid === s.id) { tools.push(Object.assign(openTool[k], { end: e._t, ok: false, aborted: true })); delete openTool[k]; } });
+          closeOpen(s, e._t, false);
           Object.keys(openAgent).forEach(k => { if (openAgent[k].sid === s.id) { agents.push(Object.assign(openAgent[k], { end: e._t })); delete openAgent[k]; } });
-          s.status = 'ended'; s.stopAt = null;
+          s.status = 'ended'; s.stopAt = null; s.tool = null;
           break;
       }
     });
-    // Close open intervals at "now" so pågående arbete syns.
+    // Close open intervals at "now" so that ongoing work shows.
     Object.values(per).forEach(s => {
       if (s.turn) turns.push(Object.assign(s.turn, { end: now, open: true }));
       if (s.stopAt != null && s.status !== 'ended') waitsHuman.push({ sid: s.id, start: s.stopAt, end: now, open: true });
       if (s.perm) waitsPerm.push(Object.assign(s.perm, { end: now, open: true }));
+      // Also catches turns interrupted during a tool, which send nothing at all.
       if (s.status !== 'ended' && now - s.last > 15 * MIN) s.status = 'stale';
     });
     Object.values(openTool).forEach(o => tools.push(Object.assign(o, { end: now, open: true })));
@@ -440,6 +487,13 @@
     const m = Math.floor(s / 60), r = Math.round(s % 60);
     return m < 60 ? `${m} min ${r ? r + ' s' : ''}`.trim() : `${Math.floor(m / 60)} h ${m % 60} min`;
   }
+  // Run time without waiting for permission when the hook reports it.
+  const toolDur = c => c.dur != null ? c.dur : c.end - c.start;
+  const plainDur = c => c.dur != null || !c.perm;
+  const HOUR = 60 * MIN, DAY = 24 * HOUR;
+  const dayLabel = t => new Date(t).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+  let multiDay = false;
+  const stamp = t => (multiDay ? dayLabel(t) + ' ' : '') + hhmmss(t);
   const quant = (arr, q) => { if (!arr.length) return NaN; const a = [...arr].sort((x, y) => x - y); const i = (a.length - 1) * q, lo = Math.floor(i); return a[lo] + (a[Math.ceil(i)] - a[lo]) * (i - lo); };
   const STATUS = {
     working: { label: 'Jobbar', icon: '▶' },
@@ -469,12 +523,15 @@
 
   function timeAxis(svg, x, from, to, y0, y1, left) {
     const span = to - from;
-    const step = [MIN, 2 * MIN, 5 * MIN, 10 * MIN, 15 * MIN, 30 * MIN, 60 * MIN].find(s => span / s <= 8) || 60 * MIN;
-    for (let t = Math.ceil(from / step) * step; t <= to; t += step) {
+    const step = [MIN, 2 * MIN, 5 * MIN, 10 * MIN, 15 * MIN, 30 * MIN, HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY, 7 * DAY].find(s => span / s <= 8) || 7 * DAY;
+    // Align ticks to local time, so that day ticks land on midnight.
+    const off = new Date(from).getTimezoneOffset() * MIN;
+    for (let t = Math.ceil((from + off) / step) * step - off; t <= to; t += step) {
       const px = x(t);
       if (px < left + 10) continue;
       el('line', { x1: px, x2: px, y1: y0, y2: y1, class: 'gridline' }, svg);
-      el('text', { x: px, y: y1 + 14, 'text-anchor': 'middle' }, svg).textContent = hhmm(t);
+      const midnight = new Date(t).getHours() === 0 && new Date(t).getMinutes() === 0;
+      el('text', { x: px, y: y1 + 14, 'text-anchor': 'middle' }, svg).textContent = step >= DAY || (midnight && step >= HOUR) ? dayLabel(t) : hhmm(t);
     }
   }
 
@@ -483,17 +540,17 @@
     const inR = e => e._t >= from;
     const events = d.vis.filter(inR);
     const tools = d.tools.filter(t => t.start >= from && !t.open && !t.aborted);
-    const plain = tools.filter(t => !t.perm).map(t => t.end - t.start);
-    const turns = d.turns.filter(t => t.start >= from && !t.open).map(t => t.end - t.start);
+    const plain = tools.filter(plainDur).map(toolDur);
+    const turns = d.turns.filter(t => t.start >= from && !t.open && !t.auto).map(t => t.end - t.start);
     const human = d.waitsHuman.filter(w => w.start >= from && !w.open).map(w => w.end - w.start);
     const perms = d.waitsPerm.filter(w => w.start >= from).length;
     const live = Object.values(d.per).filter(s => s.status !== 'ended' && s.status !== 'stale');
     const waiting = live.filter(s => s.status.startsWith('waiting'));
     const fails = tools.filter(t => !t.ok).length;
     const k = [
-      ['Events', events.length.toLocaleString('sv-SE'), `${(events.length / Math.max(1, (now - from) / MIN)).toFixed(1)} per minut`],
+      ['Events', events.length.toLocaleString('sv-SE'), (now - from) > 2 * DAY ? `${Math.round(events.length / ((now - from) / DAY))} per dygn` : `${(events.length / Math.max(1, (now - from) / MIN)).toFixed(1)} per minut`],
       ['Aktiva sessioner', live.length, `${waiting.length} väntar på dig nu`],
-      ['Turer', turns.length, turns.length ? `median ${fmtDur(quant(turns, .5))}` : '–'],
+      ['Turer', turns.length, turns.length ? `median ${fmtDur(quant(turns, .5))}${d.turns.some(t => t.start >= from && t.interrupted) ? ` · ${d.turns.filter(t => t.start >= from && t.interrupted).length} avbrutna` : ''}` : '–'],
       ['Verktygsanrop', tools.length, tools.length ? `${Math.round(100 * fails / tools.length)} % misslyckade` : '–'],
       ['Verktygstid (median)', plain.length ? fmtDur(quant(plain, .5)) : '–', plain.length ? `p90 ${fmtDur(quant(plain, .9))}` : ''],
       ['Din svarstid (median)', human.length ? fmtDur(quant(human, .5)) : '–', `${perms} tillståndsfrågor`],
@@ -528,11 +585,11 @@
       d.waitsHuman.filter(w => w.sid === s.id).forEach(w => seg(w.start, w.end, y + 6, 14, 'var(--wait-human)',
         `<b>Väntar på dig</b>${row('Från', hhmmss(w.start))}${row('Tid', fmtDur(w.end - w.start) + (w.open ? ' (pågår)' : ''))}`));
       d.turns.filter(t => t.sid === s.id).forEach(t => seg(t.start, t.end, y + 6, 14, 'var(--s1)',
-        `<b>Tur</b><div>${esc(t.prompt)}</div>${row('Start', hhmmss(t.start))}${row('Tid', fmtDur(t.end - t.start) + (t.open ? ' (pågår)' : ''))}${row('Verktygsanrop', t.tools)}`));
+        `<b>Tur${t.interrupted ? ' (avbruten)' : ''}</b><div>${esc(String(t.prompt).slice(0, 200))}</div>${row('Start', stamp(t.start))}${row('Tid', fmtDur(t.end - t.start) + (t.open ? ' (pågår)' : ''))}${row('Verktygsanrop', t.tools)}`));
       d.waitsPerm.filter(w => w.sid === s.id).forEach(w => seg(w.start, w.end, y + 6, 14, 'var(--s2)',
-        `<b>Väntar på tillstånd</b>${row('Verktyg', w.tool)}${row('Tid', fmtDur(w.end - w.start) + (w.open ? ' (pågår)' : ''))}`));
+        `<b>Väntar på tillstånd</b>${row('Verktyg', w.tool)}${row('Tid', fmtDur(w.end - w.start) + (w.open ? ' (pågår)' : ''))}${w.denied ? row('Resultat', 'nekat eller avbrutet') : ''}`));
       d.tools.filter(t => t.sid === s.id).forEach(t => seg(t.start, t.end, y + 24, 6, 'var(--s3)',
-        `<b>${t.tool}</b>${row('Tid', fmtDur(t.end - t.start) + (t.open ? ' (pågår)' : ''))}${row('Resultat', t.open ? '–' : t.ok ? 'OK' : 'Fel')}${t.perm ? row('Tillstånd', 'frågade') : ''}`));
+        `<b>${t.tool}</b>${row('Tid', fmtDur(t.open ? t.end - t.start : toolDur(t)) + (t.open ? ' (pågår)' : ''))}${row('Resultat', t.open ? '–' : t.aborted ? 'Nekat/avbrutet' : t.ok ? 'OK' : 'Fel')}${t.perm ? row('Tillstånd', 'frågade') : ''}`));
       d.agents.filter(a => a.sid === s.id).forEach(a => seg(a.start, a.end, y + 32, 6, 'var(--s5)',
         `<b>Subagent</b>${row('Typ', a.type)}${row('Tid', fmtDur(a.end - a.start) + (a.open ? ' (pågår)' : ''))}`));
       d.compacts.filter(c => c.sid === s.id && c.t >= from).forEach(c => {
@@ -550,11 +607,11 @@
     host.innerHTML = '';
     const W = Math.max(320, host.clientWidth), H = 220, left = 34, right = 8, top = 8, bottom = 24;
     const span = now - from;
-    const bucket = span <= 20 * MIN ? 30000 : span <= 70 * MIN ? 2 * MIN : 5 * MIN;
+    const bucket = span <= 20 * MIN ? 30000 : span <= 70 * MIN ? 2 * MIN : span <= 6 * HOUR ? 10 * MIN : span <= 26 * HOUR ? HOUR : span <= 8 * DAY ? 6 * HOUR : DAY;
     const start = Math.floor(from / bucket) * bucket;
     const n = Math.ceil((now - start) / bucket);
     const counts = Array.from({ length: n }, () => Object.fromEntries(GROUPS.map(g => [g.key, 0])));
-    d.vis.forEach(e => { if (e._t >= start) { const i = Math.floor((e._t - start) / bucket); if (counts[i]) counts[i][GROUP_OF[e.event].key]++; } });
+    d.vis.forEach(e => { if (e._t >= start) { const i = Math.floor((e._t - start) / bucket); if (counts[i]) counts[i][grp(e.event).key]++; } });
     const totals = counts.map(c => GROUPS.reduce((a, g) => a + c[g.key], 0));
     const max = Math.max(4, ...totals);
     const niceMax = Math.ceil(max / 5) * 5;
@@ -585,7 +642,7 @@
         acc += c[g.key];
       });
       const hit = el('rect', { x: x0 - 1, y: top, width: bw + 2, height: H - top - bottom, class: 'hit' }, svg);
-      bindTip(hit, () => `<b>${hhmm(start + i * bucket)}–${hhmm(start + (i + 1) * bucket)}</b>` +
+      bindTip(hit, () => `<b>${multiDay ? dayLabel(start + i * bucket) + ' ' : ''}${hhmm(start + i * bucket)}–${hhmm(start + (i + 1) * bucket)}</b>` +
         GROUPS.filter(g => c[g.key]).map(g => row(`<i class="sw" style="background:${g.color}"></i> ${g.label}`, c[g.key])).join('') + row('<b>Totalt</b>', `<b>${totals[i]}</b>`));
     });
   }
@@ -594,8 +651,8 @@
     const host = document.getElementById('bytype');
     host.innerHTML = '';
     const counts = Object.fromEntries(ALL_EVENTS.map(e => [e, 0]));
-    d.vis.forEach(e => { if (e._t >= from) counts[e.event]++; });
-    const rows = ALL_EVENTS.map(e => [e, counts[e]]).sort((a, b) => b[1] - a[1]);
+    d.vis.forEach(e => { if (e._t >= from) counts[e.event] = (counts[e.event] || 0) + 1; });
+    const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const total = rows.reduce((a, r) => a + r[1], 0) || 1;
     const W = Math.max(320, host.clientWidth), left = 132, right = 70, rh = 18, gap = 4, top = 4;
     const H = top + rows.length * (rh + gap);
@@ -607,11 +664,11 @@
       el('text', { x: left - 8, y: y + 13, 'text-anchor': 'end' }, svg).textContent = name;
       if (n > 0) {
         const r = Math.min(4, w / 2);
-        el('path', { d: `M${left},${y} H${left + w - r} Q${left + w},${y} ${left + w},${y + r} V${y + rh - r} Q${left + w},${y + rh} ${left + w - r},${y + rh} H${left} Z`, fill: GROUP_OF[name].color }, svg);
+        el('path', { d: `M${left},${y} H${left + w - r} Q${left + w},${y} ${left + w},${y + r} V${y + rh - r} Q${left + w},${y + rh} ${left + w - r},${y + rh} H${left} Z`, fill: grp(name).color }, svg);
       }
       el('text', { x: left + w + 6, y: y + 13, class: 'strong' }, svg).textContent = n;
       const hit = el('rect', { x: 0, y: y - 1, width: W, height: rh + 2, class: 'hit' }, svg);
-      bindTip(hit, `<b>${name}</b>${row('Grupp', GROUP_OF[name].label)}${row('Antal', n)}${row('Andel', Math.round(100 * n / total) + ' %')}`);
+      bindTip(hit, `<b>${name}</b>${row('Grupp', grp(name).label)}${row('Antal', n)}${row('Andel', Math.round(100 * n / total) + ' %')}`);
     });
   }
 
@@ -639,10 +696,10 @@
       el('line', { x1: left, x2: W - right, y1: y + rh, y2: y + rh, class: 'gridline' }, svg);
       el('text', { x: left - 10, y: cy + 4, 'text-anchor': 'end', class: 'strong' }, svg).textContent = name;
       const list = by[name];
-      const plain = list.filter(c => !c.perm).map(c => c.end - c.start);
+      const plain = list.filter(plainDur).map(toolDur);
       list.forEach((c, k) => {
         const jitter = ((k * 37) % 17 - 8) * 0.9;
-        const dur = c.end - c.start;
+        const dur = toolDur(c), wall = c.end - c.start;
         const cx = x(dur);
         const color = c.perm ? 'var(--s2)' : 'var(--s3)';
         el('circle', c.ok
@@ -650,7 +707,7 @@
           : { cx, cy: cy + jitter, r: 3.5, fill: 'var(--surface)', stroke: color, 'stroke-width': 2 }, svg);
         const hit = el('circle', { cx, cy: cy + jitter, r: 8, class: 'hit' }, svg);
         const inp = c.input && (c.input.command || c.input.file_path || c.input.pattern || c.input.url || c.input.description) || '';
-        bindTip(hit, `<b>${name}</b><div>${esc(inp)}</div>${row('Tid', fmtDur(dur))}${row('Resultat', c.ok ? 'OK' : 'Fel')}${c.perm ? row('Tillstånd', 'inkl. väntan på dig') : ''}${row('Start', hhmmss(c.start))}`);
+        bindTip(hit, `<b>${name}</b><div>${esc(inp)}</div>${row('Tid', fmtDur(dur))}${row('Resultat', c.ok ? 'OK' : 'Fel')}${c.perm ? (c.dur != null ? row('Väntan på dig', fmtDur(Math.max(0, wall - dur))) : row('Tillstånd', 'inkl. väntan på dig')) : ''}${row('Start', stamp(c.start))}`);
       });
       if (plain.length) {
         const mx = x(quant(plain, .5));
@@ -678,9 +735,9 @@
   }
 
   function detail(e) {
-    const r = e.raw;
+    const r = e.raw || {};
     switch (e.event) {
-      case 'UserPromptSubmit': return `”${r.prompt}” (${r.prompt.length} tecken)`;
+      case 'UserPromptSubmit': return r.prompt ? `”${r.prompt.slice(0, 200)}” (${r.prompt.length} tecken)` : '';
       case 'PreToolUse': case 'PostToolUse': case 'PermissionRequest': {
         const i = r.tool_input || {};
         return i.command || i.file_path || i.pattern || i.url || i.description || '';
@@ -697,11 +754,11 @@
 
   function renderStream(d, from) {
     const body = document.getElementById('stream');
-    const list = d.vis.filter(e => e._t >= from && state.groups.has(GROUP_OF[e.event].key)).slice(-300).reverse();
+    const list = d.vis.filter(e => e._t >= from && state.groups.has(grp(e.event).key)).slice(-300).reverse();
     body.innerHTML = list.map(e => `<tr data-id="${e.id}" aria-selected="${e.id === state.selected}">
-      <td class="tt">${hhmmss(e._t)}</td><td>${SHORT[e.session_id]}</td>
-      <td><i class="sw" style="background:${GROUP_OF[e.event].color}"></i> ${e.event}</td>
-      <td>${e.raw.tool_name || ''}</td><td class="detail">${esc(detail(e))}</td></tr>`).join('');
+      <td class="tt">${stamp(e._t)}</td><td>${esc(SHORT[e.session_id] || e.session_id)}</td>
+      <td><i class="sw" style="background:${grp(e.event).color}"></i> ${esc(e.event)}</td>
+      <td>${esc((e.raw && e.raw.tool_name) || '')}</td><td class="detail">${esc(detail(e))}</td></tr>`).join('');
   }
   document.getElementById('stream').addEventListener('click', ev => {
     const tr = ev.target.closest('tr');
@@ -715,17 +772,18 @@
 
   function renderSessionSelect() {
     const sel = document.getElementById('session');
-    sel.innerHTML = '<option value="all">Alla sessioner</option>' + SESSIONS.map(s => `<option value="${s.id}">${SHORT[s.id]}</option>`).join('');
+    sel.innerHTML = '<option value="all">Alla sessioner</option>' + SESSION_LIST.map(id => `<option value="${esc(id)}">${esc(SHORT[id] || id)}</option>`).join('');
     sel.value = state.session;
     sel.onchange = () => { state.session = sel.value; render(); };
   }
 
   function render() {
     const now = nowMs();
-    const first = EVENTS[0]._t;
+    const first = EVENTS.length ? EVENTS[0]._t : now - HOUR;
     const from = state.rangeMin ? now - state.rangeMin * MIN : first - MIN;
+    multiDay = now - from > 20 * HOUR;
     const d = derive(now);
-    document.getElementById('clock').textContent = (state.live ? 'Live · ' : 'Pausad · ') + hhmmss(now);
+    document.getElementById('clock').textContent = (source ? 'Fil · t.o.m. ' : state.live ? 'Live · ' : 'Pausad · ') + stamp(now);
     renderKpis(d, from, now);
     renderTimeline(d, from, now);
     renderOverTime(d, from, now);
@@ -749,12 +807,75 @@
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
   setInterval(() => { if (state.live) render(); }, 2000);
 
+  // ---------- Load a real spool file ----------
+  // The file is read here in the browser and never sent anywhere.
+  let source = null;
+  const banner = document.getElementById('banner');
+  async function loadFiles(files) {
+    files = [...files];
+    if (!files.length) return;
+    const parsed = [];
+    let bad = 0;
+    for (const f of files) {
+      const text = await f.text();
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const o = JSON.parse(line);
+          if (o && typeof o === 'object' && o.received_at && o.raw) parsed.push(o); else bad++;
+        } catch { bad++; }
+      }
+    }
+    const names = files.map(f => f.name).join(', ');
+    if (!parsed.length) {
+      banner.classList.add('error');
+      banner.innerHTML = `Hittade inga events i Korpens format i <code>${esc(names)}</code>${bad ? ` (${bad} rader gick inte att läsa)` : ''}. Välj <code>~/.oden/spool.jsonl</code>.`;
+      return;
+    }
+    const seen = new Set(), evs = [];
+    parsed.forEach((o, i) => {
+      if (o.id && seen.has(o.id)) return;
+      if (o.id) seen.add(o.id); else o.id = 'rad-' + i;
+      o._t = Date.parse(o.received_at);
+      if (isNaN(o._t)) { bad++; return; }
+      o.event = o.event || o.raw.hook_event_name || 'Okänt';
+      o.session_id = o.session_id || o.raw.session_id || 'okänd';
+      evs.push(o);
+    });
+    evs.sort((a, b) => a._t - b._t);
+    const ids = [], repo = {};
+    evs.forEach(e => {
+      if (!(e.session_id in repo)) { ids.push(e.session_id); repo[e.session_id] = null; }
+      if (repo[e.session_id] == null && e.raw.cwd) repo[e.session_id] = String(e.raw.cwd).split('/').filter(Boolean).pop() || '/';
+    });
+    SHORT = {};
+    ids.forEach(id => SHORT[id] = `${repo[id] || '?'} · ${String(id).slice(0, 4)}`);
+    EVENTS = evs; SESSION_LIST = ids; source = names;
+    Object.assign(state, { session: 'all', live: false, frozenAt: evs[evs.length - 1]._t + 1000, rangeMin: 0, selected: null });
+    document.querySelectorAll('#range button').forEach(b => b.setAttribute('aria-pressed', b.dataset.min === '0'));
+    const live = document.getElementById('live');
+    live.setAttribute('aria-pressed', 'false'); live.disabled = true;
+    document.getElementById('raw').textContent = 'Välj ett event i listan.';
+    const span = `${dayLabel(evs[0]._t)} ${hhmm(evs[0]._t)} – ${dayLabel(evs[evs.length - 1]._t)} ${hhmm(evs[evs.length - 1]._t)}`;
+    banner.classList.remove('error');
+    banner.innerHTML = `Visar <strong>${evs.length.toLocaleString('sv-SE')} events</strong> i ${ids.length} sessioner från <code>${esc(names)}</code>, ${span}.${bad ? ` ${bad} rader gick inte att läsa och hoppades över.` : ''} Filen lästes bara här i webbläsaren. Ladda om sidan för att se demodatan igen.`;
+    renderSessionSelect();
+    render();
+  }
+  document.getElementById('file').addEventListener('change', e => { loadFiles(e.target.files); e.target.value = ''; });
+  let dragDepth = 0;
+  addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dragDepth++; document.body.classList.add('dropping'); } });
+  addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+  addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dropping'); } });
+  addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dropping'); loadFiles(e.dataTransfer.files); });
+
   renderSessionSelect();
   renderChips();
   render();
 
-  // Expose fake data for export/testing (e.g. to try DuckDB queries).
+  // Expose the events for export/testing (e.g. to try DuckDB queries).
   window.odenEvents = () => EVENTS.filter(e => e._t <= nowMs()).map(({ _t, _s, ...e }) => e);
+  window.odenLoad = loadFiles;
 })();
 </script>
 </body>
