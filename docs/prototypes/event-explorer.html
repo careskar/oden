@@ -77,8 +77,7 @@
   .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
   select, .btn { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
   .btn { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-  .dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-  .btn[aria-pressed="true"] .dot-live { background: var(--s3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--s3) 25%, transparent); }
+  #dash[hidden] { display: none; }
   .clock { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
 
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -144,21 +143,21 @@
     <p class="sub">Vy över hook-events från Korpen: antal, typer, tider och tidslinje per session.</p>
   </header>
 
-  <div class="banner" id="banner" aria-live="polite">Visar <strong>påhittade events</strong> i samma format som Korpen skriver till <code>~/.oden/spool.jsonl</code>. Klicka på <em>Öppna spool-fil</em> eller dra in filen här för att se din egen data. Ta gärna med filerna i <code>~/.oden/overflow/</code> också. Filerna läses bara här i webbläsaren och skickas ingenstans. Tips: i macOS filväljare visar <kbd>⌘</kbd><kbd>⇧</kbd><kbd>.</kbd> dolda mappar som <code>.oden</code>.</div>
+  <div class="banner" id="banner" aria-live="polite">Ingen data inläst. Klicka på <em>Öppna spool-fil</em> eller dra in <code>~/.oden/spool.jsonl</code> här. Ta gärna med filerna i <code>~/.oden/overflow/</code> också. Filerna läses bara här i webbläsaren och skickas ingenstans. Tips: i macOS filväljare visar <kbd>⌘</kbd><kbd>⇧</kbd><kbd>.</kbd> dolda mappar som <code>.oden</code>.</div>
 
   <div class="controls" role="toolbar" aria-label="Filter">
     <div class="seg" id="range" role="group" aria-label="Tidsperiod">
       <button data-min="15">15 min</button>
-      <button data-min="60" aria-pressed="true">1 timme</button>
+      <button data-min="60">1 timme</button>
       <button data-min="1440">24 h</button>
-      <button data-min="0">Allt</button>
+      <button data-min="0" aria-pressed="true">Allt</button>
     </div>
     <select id="session" aria-label="Session"></select>
-    <button class="btn" id="live" aria-pressed="true"><span class="dot-live"></span>Live</button>
     <label class="btn" id="open-label">Öppna spool-fil…<input type="file" id="file" accept=".jsonl,.json,.txt,application/json" multiple hidden></label>
     <span class="clock" id="clock"></span>
   </div>
 
+  <div id="dash" hidden>
   <section class="kpis" id="kpis" aria-label="Nyckeltal"></section>
 
   <section class="panel">
@@ -232,6 +231,7 @@
       <pre class="raw" id="raw" aria-live="polite">Välj ett event i listan.</pre>
     </div>
   </section>
+  </div>
 </main>
 <div class="tip" id="tip" role="tooltip"></div>
 
@@ -255,125 +255,17 @@
   const grp = name => GROUP_OF[name] || OTHER;
   const ALL_EVENTS = GROUPS.flatMap(g => g.events);
 
-  // ---------- Fake data in Korpen's envelope format ----------
-  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-  const R = rng(4747);
-  const rand = (a, b) => a + R() * (b - a);
-  const pick = arr => arr[Math.floor(R() * arr.length)];
-  const logRand = (a, b) => Math.exp(rand(Math.log(a), Math.log(b)));
-  const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-  function ulid(ms) {
-    let s = '', n = ms;
-    for (let i = 0; i < 10; i++) { s = B32[n % 32] + s; n = Math.floor(n / 32); }
-    for (let i = 0; i < 16; i++) s += B32[Math.floor(R() * 32)];
-    return s;
-  }
-  const uuid = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(R() * 16).toString(16));
-
-  const T0 = Date.now();
   const MIN = 60000;
-  const SESSIONS = [
-    { repo: 'oden',      start: -74, end: null, prompts: ['Implementera statusmaskinen i oden ls', 'Lägg till tester för stale-status', 'Kör testerna igen och fixa felen', 'Snygga till utskriften i --watch'] },
-    { repo: 'oden',      start: -58, end: -22,  prompts: ['Undersök hur Cowork laddar hooks', 'Sammanfatta det du hittat i docs/cowork.md'] },
-    { repo: 'portfolio', start: -41, end: null, prompts: ['Byt till nytt typsnitt på startsidan', 'Varför blir bilderna suddiga på mobilen?', 'Optimera bilderna och kör Lighthouse'] },
-    { repo: 'dotfiles',  start: -13, end: null, prompts: ['Sätt upp ett zsh-alias för oden ls', 'Lägg till det i installationsskriptet också'] },
-  ];
-  const TOOLS = [
-    { name: 'Read',     w: 26, dur: [0.03, 0.4],  fail: 0.01, perm: 0 },
-    { name: 'Grep',     w: 12, dur: [0.08, 1.5],  fail: 0.02, perm: 0 },
-    { name: 'Glob',     w: 6,  dur: [0.03, 0.5],  fail: 0,    perm: 0 },
-    { name: 'Edit',     w: 16, dur: [0.04, 0.3],  fail: 0.04, perm: 0.15 },
-    { name: 'Write',    w: 4,  dur: [0.04, 0.2],  fail: 0.02, perm: 0.3 },
-    { name: 'Bash',     w: 18, dur: [0.4, 70],    fail: 0.14, perm: 0.25 },
-    { name: 'WebFetch', w: 3,  dur: [0.8, 9],     fail: 0.1,  perm: 0.5 },
-    { name: 'Task',     w: 2,  dur: [25, 160],    fail: 0,    perm: 0 },
-  ];
-  const TOOL_W = TOOLS.reduce((a, t) => a + t.w, 0);
-  const pickTool = () => { let x = R() * TOOL_W; for (const t of TOOLS) { if ((x -= t.w) < 0) return t; } return TOOLS[0]; };
-  const toolInput = (tool, repo) => ({
-    Read: { file_path: `/Users/karl/code/${repo}/${pick(['src/index.ts', 'README.md', 'src/state.ts', 'package.json', 'test/state.test.ts'])}` },
-    Grep: { pattern: pick(['waiting_input', 'TODO', 'session_id', 'font-family']), path: `/Users/karl/code/${repo}` },
-    Glob: { pattern: pick(['**/*.ts', 'src/**/*.css', '*.md']) },
-    Edit: { file_path: `/Users/karl/code/${repo}/${pick(['src/state.ts', 'src/cli.ts', 'styles.css'])}`, old_string: '…', new_string: '…' },
-    Write: { file_path: `/Users/karl/code/${repo}/${pick(['docs/cowork.md', 'test/fixtures.jsonl', 'zshrc.d/oden.zsh'])}`, content: '…' },
-    Bash: { command: pick(['npm test', 'git status', 'npx tsc --noEmit', 'ls -la', 'npx lighthouse http://localhost:3000 --quiet', 'git diff --stat']) },
-    WebFetch: { url: pick(['https://code.claude.com/docs/en/hooks', 'https://web.dev/articles/optimize-cls']), prompt: 'Sammanfatta' },
-    Task: { description: pick(['Utforska kodbasen', 'Granska testtäckning']), subagent_type: 'Explore' },
-  })[tool];
 
-  function generate() {
-    const out = [];
-    const horizon = T0 + 45 * MIN;
-    SESSIONS.forEach((s, si) => {
-      const sid = uuid();
-      s.id = sid;
-      const cwd = `/Users/karl/code/${s.repo}`;
-      const base = { session_id: sid, transcript_path: `/Users/karl/.claude/projects/-Users-karl-code-${s.repo}/${sid}.jsonl`, cwd, permission_mode: 'default' };
-      const emit = (t, name, extra = {}) => out.push({
-        v: 1, id: ulid(Math.floor(t)), received_at: new Date(t).toISOString(), harness: 'claude-code', host: 'macbook-karl',
-        event: name, session_id: sid, raw: Object.assign({}, base, { hook_event_name: name }, extra), _t: t, _s: si,
-      });
-      let t = T0 + s.start * MIN;
-      const endAt = s.end == null ? horizon : T0 + s.end * MIN;
-      emit(t, 'SessionStart', { source: 'startup' });
-      t += rand(3, 25) * 1000;
-      let p = 0, turnsSinceCompact = 0;
-      while (t < endAt) {
-        const prompt = s.prompts[p % s.prompts.length] + (p >= s.prompts.length ? ' (igen)' : '');
-        p++;
-        emit(t, 'UserPromptSubmit', { prompt });
-        t += rand(1.5, 6) * 1000;
-        const nTools = Math.floor(rand(2, 14));
-        for (let k = 0; k < nTools && t < endAt; k++) {
-          const tool = pickTool();
-          const id = 'toolu_' + ulid(Math.floor(t)).slice(10, 26).toLowerCase();
-          const input = toolInput(tool.name, s.repo);
-          emit(t, 'PreToolUse', { tool_name: tool.name, tool_input: input, tool_use_id: id });
-          let dt = logRand(tool.dur[0], tool.dur[1]) * 1000;
-          const run = Math.round(dt);
-          if (R() < tool.perm) {
-            emit(t + 40, 'PermissionRequest', { tool_name: tool.name, tool_input: input });
-            const wait = logRand(3, 140) * 1000;
-            if (wait > 6000) emit(t + 6000, 'Notification', { message: `Claude needs your permission to use ${tool.name}`, notification_type: 'permission_prompt' });
-            dt += wait;
-          }
-          if (tool.name === 'Task') {
-            const aid = 'agent_' + ulid(Math.floor(t)).slice(14, 22).toLowerCase();
-            emit(t + 150, 'SubagentStart', { agent_id: aid, agent_type: 'Explore' });
-            emit(t + dt - 200, 'SubagentStop', { agent_id: aid, agent_type: 'Explore', stop_hook_active: false });
-          }
-          const failed = R() < tool.fail;
-          emit(t + dt, failed ? 'PostToolUseFailure' : 'PostToolUse', failed
-            ? { tool_name: tool.name, tool_input: input, tool_use_id: id, error: pick(['Exit code 1', 'File has been modified since read', 'Request timed out']), duration_ms: run }
-            : { tool_name: tool.name, tool_input: input, tool_use_id: id, tool_response: { ok: true }, duration_ms: run });
-          t += dt + rand(0.8, 9) * 1000;
-        }
-        if (t >= endAt) break;
-        emit(t, 'Stop', { stop_hook_active: false });
-        turnsSinceCompact++;
-        if (turnsSinceCompact >= 3 && R() < 0.35) {
-          emit(t + 1500, 'PreCompact', { trigger: 'auto', custom_instructions: '' });
-          emit(t + 21000, 'SessionStart', { source: 'compact' });
-          turnsSinceCompact = 0;
-        }
-        const humanWait = logRand(15, 420) * 1000;
-        if (humanWait > 60000) emit(t + 60000, 'Notification', { message: 'Claude is waiting for your input', notification_type: 'idle_prompt' });
-        t += humanWait;
-      }
-      if (s.end != null) emit(endAt, 'SessionEnd', { reason: 'prompt_input_exit' });
-    });
-    out.sort((a, b) => a._t - b._t);
-    return out;
-  }
-  // Replaced by loadFiles() when a real spool file is opened.
-  let EVENTS = generate();
+  // Filled by loadFiles() when a spool file is opened.
+  let EVENTS = [];
   let SHORT = {};
-  SESSIONS.forEach(s => SHORT[s.id] = `${s.repo} · ${s.id.slice(0, 4)}`);
-  let SESSION_LIST = SESSIONS.map(s => s.id);
+  let SESSION_LIST = [];
 
   // ---------- State ----------
-  const state = { rangeMin: 60, session: 'all', live: true, frozenAt: Date.now(), groups: new Set(GROUPS.map(g => g.key)), selected: null };
-  const nowMs = () => state.live ? Date.now() : state.frozenAt;
+  // "Now" is the last event in the file: ranges count back from there.
+  const state = { rangeMin: 0, session: 'all', endAt: 0, groups: new Set(GROUPS.map(g => g.key)), selected: null };
+  const nowMs = () => state.endAt;
 
   // ---------- Derivation: pair events into intervals ----------
   function derive(now) {
@@ -778,12 +670,13 @@
   }
 
   function render() {
+    if (!EVENTS.length) return;
     const now = nowMs();
     const first = EVENTS.length ? EVENTS[0]._t : now - HOUR;
     const from = state.rangeMin ? now - state.rangeMin * MIN : first - MIN;
     multiDay = now - from > 20 * HOUR;
     const d = derive(now);
-    document.getElementById('clock').textContent = (source ? 'Fil · t.o.m. ' : state.live ? 'Live · ' : 'Pausad · ') + stamp(now);
+    document.getElementById('clock').textContent = `T.o.m. ${stamp(now)}`;
     renderKpis(d, from, now);
     renderTimeline(d, from, now);
     renderOverTime(d, from, now);
@@ -797,19 +690,11 @@
     document.querySelectorAll('#range button').forEach(x => x.setAttribute('aria-pressed', x === b));
     render();
   });
-  document.getElementById('live').onclick = function () {
-    state.live = !state.live;
-    if (!state.live) state.frozenAt = Date.now();
-    this.setAttribute('aria-pressed', state.live);
-    render();
-  };
   let resizeTimer;
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
-  setInterval(() => { if (state.live) render(); }, 2000);
 
   // ---------- Load a real spool file ----------
   // The file is read here in the browser and never sent anywhere.
-  let source = null;
   const banner = document.getElementById('banner');
   async function loadFiles(files) {
     files = [...files];
@@ -850,15 +735,14 @@
     });
     SHORT = {};
     ids.forEach(id => SHORT[id] = `${repo[id] || '?'} · ${String(id).slice(0, 4)}`);
-    EVENTS = evs; SESSION_LIST = ids; source = names;
-    Object.assign(state, { session: 'all', live: false, frozenAt: evs[evs.length - 1]._t + 1000, rangeMin: 0, selected: null });
+    EVENTS = evs; SESSION_LIST = ids;
+    Object.assign(state, { session: 'all', endAt: evs[evs.length - 1]._t + 1000, rangeMin: 0, selected: null });
     document.querySelectorAll('#range button').forEach(b => b.setAttribute('aria-pressed', b.dataset.min === '0'));
-    const live = document.getElementById('live');
-    live.setAttribute('aria-pressed', 'false'); live.disabled = true;
+    document.getElementById('dash').hidden = false;
     document.getElementById('raw').textContent = 'Välj ett event i listan.';
     const span = `${dayLabel(evs[0]._t)} ${hhmm(evs[0]._t)} – ${dayLabel(evs[evs.length - 1]._t)} ${hhmm(evs[evs.length - 1]._t)}`;
     banner.classList.remove('error');
-    banner.innerHTML = `Visar <strong>${evs.length.toLocaleString('sv-SE')} events</strong> i ${ids.length} sessioner från <code>${esc(names)}</code>, ${span}.${bad ? ` ${bad} rader gick inte att läsa och hoppades över.` : ''} Filen lästes bara här i webbläsaren. Ladda om sidan för att se demodatan igen.`;
+    banner.innerHTML = `Visar <strong>${evs.length.toLocaleString('sv-SE')} events</strong> i ${ids.length} sessioner från <code>${esc(names)}</code>, ${span}.${bad ? ` ${bad} rader gick inte att läsa och hoppades över.` : ''} Filen lästes bara här i webbläsaren.`;
     renderSessionSelect();
     render();
   }
