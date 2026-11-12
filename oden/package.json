@@ -1,0 +1,10 @@
+{
+  "name": "oden",
+  "private": true,
+  "type": "module",
+  "description": "Oden-daemonen och CLI:t. Inga beroenden, kräver Node 22.18 eller senare.",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test 'test/*.test.ts'"
+  }
+}
