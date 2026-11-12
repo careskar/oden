@@ -122,5 +122,19 @@ check "uninstall restores the original hooks" \
 "$dir/install.sh" --settings "$work/new/settings.json" >/dev/null
 check "creates a missing settings file" '[ "$(jq ".hooks | length" "$work/new/settings.json")" = 12 ]'
 
+# --- anonymize.sh --------------------------------------------------------
+
+a=$(HOME=/Users/karl "$dir/anonymize.sh" --map /Users/karl/code/app=/home/dev/projekt --max 80 <<<'{"host":"mac","raw":{"cwd":"/Users/karl/code/app","transcript_path":"/Users/karl/.claude/projects/-Users-karl-code-app/s.jsonl","other":"/Users/karl/x","tool_response":"'"$(printf "x%.0s" $(seq 90))"'"}}')
+check "anonymize maps paths and their encoded form" \
+  '[ "$(jq -r "[.raw.cwd, .raw.transcript_path] | join(\",\")" <<<"$a")" = "/home/dev/projekt,/home/dev/.claude/projects/-home-dev-projekt/s.jsonl" ]'
+check "anonymize maps HOME and host" '[ "$(jq -r "[.raw.other, .host] | join(\",\")" <<<"$a")" = "/home/dev/x,devbox" ]'
+check "anonymize cuts long strings" '[ "$(jq -r .raw.tool_response <<<"$a")" = "$(printf "x%.0s" $(seq 80))…[cut]" ]'
+
+# --- test data ------------------------------------------------------------
+
+td="$dir/../testdata/claude-code"
+check "test data is valid JSONL in Korpen's format" \
+  '[ "$(cat "$td"/*.jsonl | jq -s "map(select(.v == 1 and .event == .raw.hook_event_name)) | length")" = "$(cat "$td"/*.jsonl | wc -l | tr -d " ")" ]'
+
 echo
 [ "$fails" -eq 0 ] && echo "all tests passed" || { echo "$fails test(s) failed"; exit 1; }
