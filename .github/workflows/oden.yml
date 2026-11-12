@@ -6,6 +6,9 @@ on:
   pull_request:
     paths: ["oden/**", "testdata/**", ".github/workflows/oden.yml"]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
